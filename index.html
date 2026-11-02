@@ -130,6 +130,10 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .page canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .page canvas.hl{mix-blend-mode:multiply}
 .page .ph{position:absolute;inset:0;display:grid;place-items:center;font:500 13px var(--f-mono);color:#9AA0A8}
+.mini{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px));z-index:6;display:flex;gap:2px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.mini .tool{height:38px;min-width:38px}
+#ed.focus .tb{display:none}
+#ed.focus #pages{padding-top:calc(24px + env(safe-area-inset-top,0px))}
 .pageind{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:99px;padding:6px 14px;font:500 12px var(--f-mono);font-variant-numeric:tabular-nums;color:var(--muted);pointer-events:none;z-index:4}
 .banner{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:4;width:min(560px,calc(100% - 32px));background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:14px;padding:14px 16px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;font-size:14px}
 .banner b{display:block}
@@ -162,6 +166,8 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
   <symbol id="i-in" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6M9 14h6"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-hide" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+  <symbol id="i-show" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l.9 12.5a1.5 1.5 0 0 0 1.5 1.5h6.2a1.5 1.5 0 0 0 1.5-1.5L17.5 7"/></symbol>
 </svg>
 
@@ -224,6 +230,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         <button class="tool" id="finger" title="손가락으로도 필기" aria-label="손가락으로도 필기" aria-pressed="false"><svg class="i"><use href="#i-hand"/></svg></button>
       </div>
       <div class="tb-r">
+        <button class="tool" id="focus-on" title="도구 숨기기 (페이지를 손가락으로 톡 쳐도 돼요)" aria-label="도구 숨기기"><svg class="i"><use href="#i-hide"/></svg></button>
         <div class="zoom">
           <button class="tool" id="zout" aria-label="축소"><svg class="i"><use href="#i-minus"/></svg></button>
           <button class="zlabel" id="zlabel" title="화면 너비에 맞추기">100%</button>
@@ -233,6 +240,13 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
       </div>
     </header>
     <div id="viewer"><div id="pages"></div></div>
+    <div class="mini" id="mini" hidden role="toolbar" aria-label="간단 도구">
+      <button class="tool" data-tool="pen" aria-label="펜"><svg class="i"><use href="#i-pen"/></svg></button>
+      <button class="tool" data-tool="hl" aria-label="형광펜"><svg class="i"><use href="#i-hl"/></svg></button>
+      <button class="tool" data-tool="eraser" aria-label="지우개"><svg class="i"><use href="#i-er"/></svg></button>
+      <button class="tool" id="mini-undo" aria-label="실행취소" disabled><svg class="i"><use href="#i-undo"/></svg></button>
+      <button class="tool" id="focus-off" aria-label="도구 모두 보이기"><svg class="i"><use href="#i-show"/></svg></button>
+    </div>
     <div class="banner" id="banner" hidden>
       <div><b>원본 PDF가 없어요</b><span>필기는 그대로 있어요. 같은 PDF를 다시 연결하면 이어서 볼 수 있어요.</span></div>
       <button class="btn" id="relink-btn">PDF 다시 연결</button>
@@ -1027,6 +1041,7 @@ function redo() {
 function updateUndo() {
   $('#undo').disabled = !cur || !cur.undo.length;
   $('#redo').disabled = !cur || !cur.redo.length;
+  $('#mini-undo').disabled = $('#undo').disabled;
 }
 
 /* ---------- saving ---------- */
@@ -1154,9 +1169,12 @@ function endPinch(c) {
   viewer.scrollLeft -= (p.m.x - p.m0.x); viewer.scrollTop -= (p.m.y - p.m0.y);
 }
 const directTouches = e => [...e.touches].filter(t => t.touchType !== 'stylus');
+let tap = null;
 viewer.addEventListener('touchstart', e => {
   const c = cur; if (!c) return;
   touchCount = directTouches(e).length;
+  const d0 = directTouches(e);
+  tap = (d0.length === 1 && e.touches.length === 1 && !ui.finger && performance.now() - lastPen > 500) ? { x: d0[0].clientX, y: d0[0].clientY, t: performance.now() } : null;
   if ([...e.changedTouches].some(t => t.touchType === 'stylus')) { e.preventDefault(); return; }
   const direct = directTouches(e);
   const penBusy = (c.active && c.active.type === 'pen') || performance.now() - lastPen < 500;
@@ -1169,6 +1187,7 @@ viewer.addEventListener('touchstart', e => {
 }, { passive: false });
 viewer.addEventListener('touchmove', e => {
   const c = cur; if (!c) return;
+  if (tap) { const t = e.touches[0]; if (!t || e.touches.length > 1 || Math.hypot(t.clientX - tap.x, t.clientY - tap.y) > 10) tap = null; }
   if (c.pinch) { const d = directTouches(e); if (d.length >= 2) movePinch(c, d); if (e.cancelable) e.preventDefault(); return; }
   const stylus = [...e.touches].some(t => t.touchType === 'stylus');
   const penBusy = (c.active && c.active.type === 'pen') || performance.now() - lastPen < 500;
@@ -1178,6 +1197,8 @@ function touchEnd(e) {
   const c = cur; if (!c) return;
   touchCount = directTouches(e).length;
   if (c.pinch && touchCount < 2) endPinch(c);
+  if (tap && e.type === 'touchend' && e.touches.length === 0 && performance.now() - tap.t < 300 && !c.pinch) setFocus(!ui.focus);
+  if (e.touches.length === 0) tap = null;
 }
 viewer.addEventListener('touchend', touchEnd);
 viewer.addEventListener('touchcancel', touchEnd);
@@ -1232,6 +1253,14 @@ $('#zin').addEventListener('click', () => cur && setZoom(cur.zoom * 1.25));
 $('#zout').addEventListener('click', () => cur && setZoom(cur.zoom / 1.25));
 $('#zlabel').addEventListener('click', () => cur && setZoom(1));
 $('#export').addEventListener('click', exportPdf);
+function setFocus(on) {
+  ui.focus = !!on; saveUi();
+  $('#ed').classList.toggle('focus', ui.focus);
+  $('#mini').hidden = !ui.focus;
+}
+$('#focus-on').addEventListener('click', () => setFocus(true));
+$('#focus-off').addEventListener('click', () => setFocus(false));
+$('#mini-undo').addEventListener('click', () => { undo(); updateUndo(); });
 $('#back').addEventListener('click', async () => {
   const b = $('#back'); b.disabled = true;
   const ok = await closeDoc(false);
@@ -1274,7 +1303,7 @@ libEl.addEventListener('drop', e => { e.preventDefault(); libEl.classList.remove
 
 $('#install-tip').hidden = isStandalone() || !/iPad|Macintosh/.test(navigator.userAgent) || !('ontouchend' in document);
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
-renderTools(); renderFinger(); loadLib();
+renderTools(); renderFinger(); setFocus(ui.focus); loadLib();
 </script>
 </body>
 </html>
