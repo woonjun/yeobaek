@@ -129,6 +129,9 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .ecur{position:fixed;left:0;top:0;border:1.5px solid var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:50%;pointer-events:none;z-index:7;transform:translate(-50%,-50%)}
 .zlabel{min-width:56px;height:40px;border:0;background:none;font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;color:var(--muted);border-radius:10px}
 #viewer{flex:1;overflow:auto;background:var(--desk);touch-action:pan-x pan-y;overscroll-behavior:contain;position:relative;-webkit-overflow-scrolling:touch}
+#viewer.hdir #pages{flex-direction:row;align-items:center;min-height:100%;gap:24px;padding-top:16px;padding-bottom:calc(52px + env(safe-area-inset-bottom,0px))}
+#viewer.hdir.snap{scroll-snap-type:x mandatory}
+#viewer.hdir.snap .page,#viewer.hdir.snap .addpage{scroll-snap-align:center;scroll-snap-stop:always}
 #pages{position:relative;display:flex;flex-direction:column;align-items:center;gap:16px;padding-top:24px;padding-bottom:calc(120px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));min-width:100%;width:max-content}
 .page{position:relative;flex:none;background:var(--paper);box-shadow:var(--shadow);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .fingerdraw .page{touch-action:none}
@@ -193,6 +196,8 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
   <symbol id="i-pages" viewBox="0 0 24 24"><rect x="7" y="3" width="12" height="15" rx="1.5"/><path d="M5 7v12a2 2 0 0 0 2 2h9"/><path d="M13 7.5v6M10 10.5h6"/></symbol>
   <symbol id="i-note" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></symbol>
   <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></symbol>
+  <symbol id="i-dir-v" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="8" rx="1.5"/><rect x="7" y="13.5" width="10" height="8" rx="1.5"/><path d="M3 9v6M1.5 13.5L3 15l1.5-1.5M1.5 10.5L3 9l1.5 1.5"/></symbol>
+  <symbol id="i-dir-h" viewBox="0 0 24 24"><rect x="2.5" y="6" width="8" height="12" rx="1.5"/><rect x="13.5" y="6" width="8" height="12" rx="1.5"/><path d="M9 21.5h6M10.5 20L9 21.5l1.5 1.5M13.5 20l1.5 1.5-1.5 1.5"/></symbol>
   <symbol id="i-hide" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
   <symbol id="i-show" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l.9 12.5a1.5 1.5 0 0 0 1.5 1.5h6.2a1.5 1.5 0 0 0 1.5-1.5L17.5 7"/></symbol>
@@ -231,7 +236,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v6</span>
+        <span class="usage"><span id="usage"></span> · v7</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -263,6 +268,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         <button class="tool" id="finger" title="손가락으로도 필기" aria-label="손가락으로도 필기" aria-pressed="false"><svg class="i"><use href="#i-hand"/></svg></button>
       </div>
       <div class="tb-r">
+        <button class="tool" id="dir-btn" title="넘기는 방향 바꾸기" aria-label="넘기는 방향 바꾸기"><svg class="i"><use href="#i-dir-v"/></svg></button>
         <button class="tool" id="pages-btn" hidden title="페이지 추가·삭제" aria-label="페이지 추가·삭제"><svg class="i"><use href="#i-pages"/></svg></button>
         <button class="tool" id="focus-on" title="도구 숨기기 (페이지를 손가락으로 톡 쳐도 돼요)" aria-label="도구 숨기기"><svg class="i"><use href="#i-hide"/></svg></button>
         <div class="zoom">
@@ -342,7 +348,7 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 class UErr extends Error {}
 
-const ui = { tool: 'pen', penColor: 0, hlColor: 0, penW: 1, hlW: 1, erW: 1, erMode: 'part', finger: false, lastTpl: 'lined', lastOr: 'p' };
+const ui = { dir: 'v', tool: 'pen', penColor: 0, hlColor: 0, penW: 1, hlW: 1, erW: 1, erMode: 'part', finger: false, lastTpl: 'lined', lastOr: 'p' };
 try { Object.assign(ui, JSON.parse(localStorage.getItem('yb.ui') || '{}')); } catch {}
 function saveUi() { try { localStorage.setItem('yb.ui', JSON.stringify(ui)); } catch {} }
 
@@ -767,7 +773,7 @@ async function openDoc(id) {
       if (!pg.visible) unrender(c, pg);
     }
     pump();
-  }, { root: viewer, rootMargin: '100% 0px' });
+  }, { root: viewer, rootMargin: '100% 100%' });
   c.pages.forEach(pg => c.io.observe(pg.el));
   requestAnimationFrame(() => { scrollToPage(c.curPage); onScroll(); });
   await loadStrokes(c);
@@ -812,10 +818,22 @@ function layout() {
   const c = cur; if (!c) return;
   const maxW = c.pages.reduce((m, p) => Math.max(m, p.w), 1);
   const avail = Math.max(240, viewer.clientWidth - 32);
-  c.base = Math.min(avail, 1000) / maxW;
+  if (ui.dir === 'h') {
+    const maxH = c.pages.reduce((m, p) => Math.max(m, p.h), 1);
+    c.base = Math.max(0.1, Math.min((viewer.clientWidth - 48) / maxW, (viewer.clientHeight - 76) / maxH));
+  } else c.base = Math.min(avail, 1000) / maxW;
   c.scale = c.base * c.zoom;
   for (const pg of c.pages) { pg.el.style.width = (pg.w * c.scale) + 'px'; pg.el.style.height = (pg.h * c.scale) + 'px'; }
-  if (c.addBtn && c.pages.length) c.addBtn.style.width = (c.pages[c.pages.length - 1].w * c.scale) + 'px';
+  if (c.addBtn && c.pages.length) {
+    const lp = c.pages[c.pages.length - 1];
+    if (ui.dir === 'h') { c.addBtn.style.width = '140px'; c.addBtn.style.height = (lp.h * c.scale) + 'px'; }
+    else { c.addBtn.style.width = (lp.w * c.scale) + 'px'; c.addBtn.style.height = ''; }
+  }
+  viewer.classList.toggle('snap', ui.dir === 'h' && c.zoom <= 1.001);
+  if (ui.dir === 'h') {
+    const pad = Math.max(16, (viewer.clientWidth - maxW * c.scale) / 2) + 'px';
+    pagesEl.style.paddingLeft = pagesEl.style.paddingRight = pad;
+  } else pagesEl.style.paddingLeft = pagesEl.style.paddingRight = '';
   $('#zlabel').textContent = Math.round(c.zoom * 100) + '%';
   pump();
 }
@@ -835,7 +853,9 @@ function setZoom(z, fx, fy) {
 
 function scrollToPage(i) {
   const c = cur; if (!c || !c.pages[i]) return;
-  viewer.scrollTop = Math.max(0, c.pages[i].el.offsetTop - 16);
+  const el = c.pages[i].el;
+  if (ui.dir === 'h') viewer.scrollLeft = Math.max(0, el.offsetLeft + el.offsetWidth / 2 - viewer.clientWidth / 2);
+  else viewer.scrollTop = Math.max(0, el.offsetTop - 16);
 }
 
 let scrollRaf = 0;
@@ -844,9 +864,10 @@ function onScroll() {
   scrollRaf = requestAnimationFrame(() => {
     scrollRaf = 0;
     const c = cur; if (!c || !c.pages.length) return;
-    const mid = viewer.scrollTop + viewer.clientHeight / 3;
+    const H = ui.dir === 'h';
+    const mid = H ? viewer.scrollLeft + viewer.clientWidth / 2 : viewer.scrollTop + viewer.clientHeight / 3;
     let lo = 0, hi = c.pages.length - 1;
-    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (c.pages[m].el.offsetTop <= mid) lo = m; else hi = m - 1; }
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if ((H ? c.pages[m].el.offsetLeft : c.pages[m].el.offsetTop) <= mid) lo = m; else hi = m - 1; }
     c.curPage = lo;
     $('#pageind').textContent = `${lo + 1} / ${c.n}`;
     pump();
@@ -878,11 +899,12 @@ async function pump() {
   try {
     while (cur) {
       const c = cur;
-      const center = viewer.scrollTop + viewer.clientHeight / 2;
+      const H = ui.dir === 'h';
+      const center = H ? viewer.scrollLeft + viewer.clientWidth / 2 : viewer.scrollTop + viewer.clientHeight / 2;
       let best = null, bd = Infinity;
       for (const pg of c.pages) {
         if (!pg.visible || pg.failed || pg.renderedScale === c.scale) continue;
-        const d = Math.abs(pg.el.offsetTop + pg.el.offsetHeight / 2 - center);
+        const d = Math.abs(H ? pg.el.offsetLeft + pg.el.offsetWidth / 2 - center : pg.el.offsetTop + pg.el.offsetHeight / 2 - center);
         if (d < bd) { bd = d; best = pg; }
       }
       if (!best) break;
@@ -1343,7 +1365,27 @@ viewer.addEventListener('wheel', e => {
   e.preventDefault();
   setZoom(cur.zoom * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
 }, { passive: false });
-new ResizeObserver(() => { if (cur && !cur.pinch) setZoom(cur.zoom); }).observe(viewer);
+new ResizeObserver(() => {
+  if (!cur || cur.pinch) return;
+  if (ui.dir === 'h') { const p = cur.curPage; layout(); scrollToPage(p); } else setZoom(cur.zoom);
+}).observe(viewer);
+function renderDir() {
+  viewer.classList.toggle('hdir', ui.dir === 'h');
+  $('use', $('#dir-btn')).setAttribute('href', ui.dir === 'h' ? '#i-dir-h' : '#i-dir-v');
+  $('#dir-btn').title = ui.dir === 'h' ? '지금: 가로로 넘기기 (누르면 세로 스크롤)' : '지금: 세로 스크롤 (누르면 가로로 넘기기)';
+}
+function setDir(d) {
+  const c = cur, p = c ? c.curPage : 0;
+  ui.dir = d; saveUi(); renderDir();
+  if (!c) return;
+  c.zoom = 1; layout();
+  viewer.scrollLeft = 0; viewer.scrollTop = 0;
+  scrollToPage(p); onScroll();
+}
+$('#dir-btn').addEventListener('click', () => {
+  setDir(ui.dir === 'h' ? 'v' : 'h');
+  toast(ui.dir === 'h' ? '가로로 넘겨요 · 책처럼 한 쪽씩' : '세로로 스크롤해요');
+});
 
 /* ---------- toolbar ---------- */
 function renderTools() {
@@ -1691,7 +1733,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
     reloaded = true; location.reload();
   });
 }
-renderTools(); renderFinger(); setFocus(ui.focus); loadLib();
+renderTools(); renderFinger(); renderDir(); setFocus(ui.focus); loadLib();
 </script>
 </body>
 </html>
