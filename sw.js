@@ -1,5 +1,5 @@
 /* 여백 노트 service worker: works offline after the first visit. */
-const V = 'yeobaek-v2';
+const V = 'yeobaek-v3';
 const SHELL = [
   './', './index.html', './manifest.webmanifest',
   './icons/apple-touch-icon.png', './icons/icon-192.png', './icons/icon-512.png',
@@ -21,7 +21,7 @@ async function networkFirst(req) {
   const cache = await caches.open(V);
   try {
     const res = await Promise.race([
-      fetch(req),
+      fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 4000))
     ]);
     if (res && res.ok) cache.put(req, res.clone());

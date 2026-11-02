@@ -198,7 +198,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         <button class="btn primary" id="empty-import"><svg class="i"><use href="#i-in"/></svg>PDF 불러오기</button>
       </div>
       <footer class="lib-foot">
-        <span class="usage" id="usage"></span>
+        <span class="usage"><span id="usage"></span> · v3</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -1267,6 +1267,7 @@ $('#back').addEventListener('click', async () => {
   b.disabled = false;
   if (!ok) return;
   $('#ed').hidden = true; $('#lib').hidden = false; renderLib(); refreshUsage();
+  if (S.pendingReload) location.reload();
 });
 $('#relink-btn').addEventListener('click', () => $('#f-relink').click());
 $('#f-relink').addEventListener('change', async e => {
@@ -1302,7 +1303,17 @@ libEl.addEventListener('dragleave', e => { if (e.target === libEl) libEl.classLi
 libEl.addEventListener('drop', e => { e.preventDefault(); libEl.classList.remove('drag'); if (e.dataTransfer && e.dataTransfer.files.length) importFiles(e.dataTransfer.files); });
 
 $('#install-tip').hidden = isStandalone() || !/iPad|Macintosh/.test(navigator.userAgent) || !('ontouchend' in document);
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+  }).catch(() => {});
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloaded || !navigator.serviceWorker.controller) return;
+    if (cur) { toast('새 버전이 있어요. 서재로 나가면 적용돼요.', 4000); S.pendingReload = true; return; }
+    reloaded = true; location.reload();
+  });
+}
 renderTools(); renderFinger(); setFocus(ui.focus); loadLib();
 </script>
 </body>
