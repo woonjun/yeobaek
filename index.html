@@ -149,6 +149,22 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .sheet-card b{font-size:16px}
 .sheet-card p{margin:0 0 8px;color:var(--muted);font-size:14px;word-break:break-all}
 .sheet-card .row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.lib-acts{display:flex;gap:8px;flex-wrap:wrap}
+.sheet-card.wide{width:min(580px,100%);gap:12px}
+.fld{display:flex;flex-direction:column;gap:8px}
+.fld>span{font-size:12px;font-weight:500;color:var(--muted);letter-spacing:.02em}
+.fld input{height:44px;border:1px solid var(--line);border-radius:10px;padding:0 12px;font:inherit;color:var(--fg);background:var(--surface-2)}
+.fld input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.tpls{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px}
+.tplb{border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;padding:8px 4px;border-radius:12px;font-size:12px;font-weight:500;color:var(--fg)}
+.tplb canvas{display:block;border-radius:3px;box-shadow:0 0 0 1px var(--line),0 2px 6px rgba(18,24,38,.08)}
+.tplb[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+.tplb[aria-pressed="true"] canvas{box-shadow:0 0 0 2px var(--accent)}
+.segs{display:flex;gap:6px}
+.segs .emode{height:36px;padding:0 16px;font-size:13px}
+.sheet-card .row.spread{justify-content:space-between}
+.danger-ghost{color:var(--danger)}
+.addpage{flex:none;height:72px;max-width:100%;border:1.5px dashed var(--line);border-radius:6px;background:transparent;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:8px;font-weight:500}
 @media (max-width:1180px){.btn .lbl-long{display:none}}
 @media (max-width:920px){
   .tb-l{flex:1 1 200px}
@@ -171,6 +187,8 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
   <symbol id="i-in" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6M9 14h6"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-pages" viewBox="0 0 24 24"><rect x="7" y="3" width="12" height="15" rx="1.5"/><path d="M5 7v12a2 2 0 0 0 2 2h9"/><path d="M13 7.5v6M10 10.5h6"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></symbol>
   <symbol id="i-hide" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
   <symbol id="i-show" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l.9 12.5a1.5 1.5 0 0 0 1.5 1.5h6.2a1.5 1.5 0 0 0 1.5-1.5L17.5 7"/></symbol>
@@ -184,7 +202,10 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
           <h1><span class="mark">여백</span></h1>
           <p>PDF 위에 바로 쓰는 나만의 필기장</p>
         </div>
-        <button class="btn primary" id="import-btn"><svg class="i"><use href="#i-in"/></svg>PDF 불러오기</button>
+        <div class="lib-acts">
+          <button class="btn" id="new-btn"><svg class="i"><use href="#i-note"/></svg>새 노트</button>
+          <button class="btn primary" id="import-btn"><svg class="i"><use href="#i-in"/></svg>PDF 불러오기</button>
+        </div>
       </header>
       <div id="install-tip" class="notice warn" hidden>
         <b>홈 화면에 추가해서 써 주세요.</b> 공유 버튼 → "홈 화면에 추가"를 누른 뒤 홈 화면의 여백 아이콘으로 열면 전체화면으로 쓸 수 있어요. Safari에서 연 것과 아이콘으로 연 것은 저장 공간이 따로라서, 필기는 아이콘으로 연 앱에서만 하는 게 좋아요.
@@ -198,12 +219,15 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
           <g stroke="var(--muted)" stroke-width="2" stroke-linecap="round"><path d="M32 26h44M32 38h50M32 50h40M32 62h48M32 74h30"/></g>
           <path d="M34 94c6-6 10 4 16-2s9-6 13 0 9 2 13-3" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"/>
         </svg>
-        <h2>첫 PDF를 불러와 보세요</h2>
-        <p>리포트나 자료 PDF를 불러오면 바로 펜과 형광펜으로 필기할 수 있어요. 필기는 쓰는 즉시 이 아이패드에 저장돼요.</p>
-        <button class="btn primary" id="empty-import"><svg class="i"><use href="#i-in"/></svg>PDF 불러오기</button>
+        <h2>첫 필기를 시작해 보세요</h2>
+        <p>빈 노트를 만들거나 PDF를 불러와서 펜과 형광펜으로 필기할 수 있어요. 필기는 쓰는 즉시 이 아이패드에 저장돼요.</p>
+        <div class="lib-acts" style="justify-content:center">
+          <button class="btn" id="empty-new"><svg class="i"><use href="#i-note"/></svg>새 노트</button>
+          <button class="btn primary" id="empty-import"><svg class="i"><use href="#i-in"/></svg>PDF 불러오기</button>
+        </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v4</span>
+        <span class="usage"><span id="usage"></span> · v5</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -235,6 +259,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         <button class="tool" id="finger" title="손가락으로도 필기" aria-label="손가락으로도 필기" aria-pressed="false"><svg class="i"><use href="#i-hand"/></svg></button>
       </div>
       <div class="tb-r">
+        <button class="tool" id="pages-btn" hidden title="페이지 추가·삭제" aria-label="페이지 추가·삭제"><svg class="i"><use href="#i-pages"/></svg></button>
         <button class="tool" id="focus-on" title="도구 숨기기 (페이지를 손가락으로 톡 쳐도 돼요)" aria-label="도구 숨기기"><svg class="i"><use href="#i-hide"/></svg></button>
         <div class="zoom">
           <button class="tool" id="zout" aria-label="축소"><svg class="i"><use href="#i-minus"/></svg></button>
@@ -268,6 +293,22 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
     <div class="row"><button class="btn" id="sheet-cancel">닫기</button><button class="btn primary" id="sheet-go">저장하기</button></div>
   </div>
 </div>
+<div class="sheet" id="new-sheet" hidden>
+  <div class="sheet-card wide" role="dialog" aria-modal="true" aria-labelledby="new-title">
+    <b id="new-title">새 노트</b>
+    <label class="fld" for="new-name"><span>이름</span><input id="new-name" type="text" maxlength="80" autocomplete="off"></label>
+    <div class="fld"><span>템플릿</span><div class="tpls" id="new-tpls"></div></div>
+    <div class="fld"><span>방향 · A4</span><div class="segs" id="new-or"><button class="emode" type="button" data-or="p">세로</button><button class="emode" type="button" data-or="l">가로</button></div></div>
+    <div class="row"><button class="btn" id="new-cancel">닫기</button><button class="btn primary" id="new-go">만들기</button></div>
+  </div>
+</div>
+<div class="sheet" id="page-sheet" hidden>
+  <div class="sheet-card wide" role="dialog" aria-modal="true" aria-labelledby="ps-title">
+    <b id="ps-title">페이지</b>
+    <div class="fld"><span id="ps-addlbl"></span><div class="tpls" id="ps-tpls"></div></div>
+    <div class="row spread"><button class="btn danger-ghost" id="ps-del"></button><button class="btn" id="ps-close">닫기</button></div>
+  </div>
+</div>
 <div id="toast" role="status" hidden></div>
 <input type="file" id="f-pdf" class="vh" accept="application/pdf,.pdf" multiple>
 <input type="file" id="f-relink" class="vh" accept="application/pdf,.pdf">
@@ -289,7 +330,7 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 class UErr extends Error {}
 
-const ui = { tool: 'pen', penColor: 0, hlColor: 0, penW: 1, hlW: 1, erW: 1, erMode: 'part', finger: false };
+const ui = { tool: 'pen', penColor: 0, hlColor: 0, penW: 1, hlW: 1, erW: 1, erMode: 'part', finger: false, lastTpl: 'lined', lastOr: 'p' };
 try { Object.assign(ui, JSON.parse(localStorage.getItem('yb.ui') || '{}')); } catch {}
 function saveUi() { try { localStorage.setItem('yb.ui', JSON.stringify(ui)); } catch {} }
 
@@ -452,7 +493,7 @@ function cardFor(d) {
   const meta = document.createElement('div');
   const h = document.createElement('h3'); h.textContent = d.name;
   const sub = document.createElement('p'); sub.className = 'sub';
-  sub.textContent = `${d.pages}쪽 · ${fmtMB(d.size || 0)} · ${fmtDate(Math.max(d.updatedAt || 0, d.openedAt || 0) || d.createdAt)}`;
+  sub.textContent = `${d.kind === 'note' ? '노트' : fmtMB(d.size || 0)} · ${d.pages}쪽 · ${fmtDate(Math.max(d.updatedAt || 0, d.openedAt || 0) || d.createdAt)}`;
   meta.append(h, sub);
   open.append(th, meta);
   open.addEventListener('click', () => openDoc(d.id));
@@ -628,10 +669,15 @@ async function restore(file) {
       if (!m || typeof m.id !== 'string' || !/^[a-z0-9]+$/i.test(m.id) || !Array.isArray(m.sizes)) continue;
       const meta = { id: m.id, name: String(m.name || '문서'), pages: +m.pages || m.sizes.length, sizes: m.sizes, size: +m.size || 0,
         hasThumb: false, createdAt: +m.createdAt || Date.now(), updatedAt: +m.updatedAt || Date.now(), openedAt: +m.openedAt || 0, lastPage: +m.lastPage || 0 };
+      if (m.kind === 'note') {
+        meta.kind = 'note';
+        meta.tpl = meta.sizes.map((_, i) => { const t = Array.isArray(m.tpl) && m.tpl[i]; return { t: t && TPL_SET.has(t.t) ? t.t : 'blank', d: (t && +t.d) || meta.createdAt }; });
+        meta.pages = meta.sizes.length;
+      }
       let pdf = null;
       const zf = zip && zip.file(`pdfs/${m.id}.pdf`);
       if (zf) pdf = new Blob([await zf.async('uint8array')], { type: 'application/pdf' });
-      else if (!(await idb.get('files', m.id))) missing++;
+      else if (m.kind !== 'note' && !(await idb.get('files', m.id))) missing++;
       let thumb = null;
       if (pdf) {
         try {
@@ -640,6 +686,7 @@ async function restore(file) {
           thumb = await renderThumb(await doc.getPage(1)); await doc.destroy();
         } catch {}
       }
+      if (meta.kind === 'note') { try { const p0 = normPages(d.pages).find(p => p.page === 0); thumb = await noteThumb(meta, p0 ? p0.s.map(decStroke) : []); } catch {} }
       const pages = normPages(d.pages);
       const existing = await idb.pagesOf(m.id);
       meta.hasThumb = !!thumb || (!pdf && !!(await idb.get('thumbs', m.id)));
@@ -696,6 +743,7 @@ async function openDoc(id) {
   };
   $('#lib').hidden = true; $('#ed').hidden = false; $('#banner').hidden = true;
   $('#doc-name').textContent = meta.name;
+  $('#pages-btn').hidden = meta.kind !== 'note';
   setStatus('loading');
   updateUndo();
   buildPages(c);
@@ -737,6 +785,12 @@ function buildPages(c) {
     c.pages.push({ i, w, h, el, ph, pdfC: null, hl: null, ink: null, renderedScale: 0, visible: false, failed: false });
     els.push(el);
   }
+  if (c.meta.kind === 'note') {
+    const ab = document.createElement('button'); ab.className = 'addpage'; ab.type = 'button';
+    ab.innerHTML = '<svg class="i"><use href="#i-plus"/></svg><span>페이지 추가</span>';
+    ab.onclick = () => { const last = c.n - 1; addPage(c, last, ((c.meta.tpl || [])[last] || {}).t || 'lined'); };
+    c.addBtn = ab; els.push(ab);
+  }
   pagesEl.replaceChildren(...els);
   $('#pageind').textContent = `1 / ${c.n}`;
 }
@@ -748,6 +802,7 @@ function layout() {
   c.base = Math.min(avail, 1000) / maxW;
   c.scale = c.base * c.zoom;
   for (const pg of c.pages) { pg.el.style.width = (pg.w * c.scale) + 'px'; pg.el.style.height = (pg.h * c.scale) + 'px'; }
+  if (c.addBtn && c.pages.length) c.addBtn.style.width = (c.pages[c.pages.length - 1].w * c.scale) + 'px';
   $('#zlabel').textContent = Math.round(c.zoom * 100) + '%';
   pump();
 }
@@ -825,8 +880,9 @@ async function pump() {
 
 async function renderPage(c, pg) {
   const s = c.scale;
-  let page;
-  try { page = await getPdfPage(c, pg.i); }
+  const isNote = c.meta.kind === 'note';
+  let page = null;
+  if (!isNote) try { page = await getPdfPage(c, pg.i); }
   catch {
     pg.failed = true; pg.ph.textContent = `${pg.i + 1}쪽 · 원본 없음`;
     if (cur === c) $('#banner').hidden = false;
@@ -837,13 +893,14 @@ async function renderPage(c, pg) {
   let dpr = Math.min(window.devicePixelRatio || 1, 2);
   const MAXPX = 8e6;
   if (cssW * cssH * dpr * dpr > MAXPX) dpr = Math.sqrt(MAXPX / (cssW * cssH));
-  const vp = page.getViewport({ scale: s * dpr });
+  const vp = page ? page.getViewport({ scale: s * dpr }) : { width: cssW * dpr, height: cssH * dpr };
   const cv = document.createElement('canvas'); cv.className = 'pdf';
   cv.width = Math.max(1, Math.floor(vp.width)); cv.height = Math.max(1, Math.floor(vp.height));
   try {
     const ctx = cv.getContext('2d', { alpha: false });
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
-    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    if (page) await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    else { const k = cv.width / pg.w; ctx.setTransform(k, 0, 0, k, 0, 0); drawTpl(ctx, tplOps(c.meta.tpl && c.meta.tpl[pg.i], pg.w, pg.h)); }
   } catch { cv.width = cv.height = 0; pg.renderedScale = s; return; }
   if (cur !== c || !pg.visible) { cv.width = cv.height = 0; return; }
   if (pg.pdfC) { pg.pdfC.width = pg.pdfC.height = 0; pg.pdfC.remove(); }
@@ -859,7 +916,7 @@ async function renderPage(c, pg) {
     redrawPage(c, pg);
   }
   pg.renderedScale = s;
-  try { page.cleanup(); } catch {}
+  try { page && page.cleanup(); } catch {}
 }
 
 function unrender(c, pg) {
@@ -1144,6 +1201,13 @@ async function closeDoc(silent) {
   if (c.active) abortStroke(c);
   const ok = await flush(c);
   if (!ok && !silent) { toast('저장하지 못한 필기가 있어요. 다시 시도해 주세요.', 4000); return false; }
+  if (c.meta.kind === 'note') {
+    try {
+      const b = await noteThumb(c.meta, c.strokes.get(0) || []);
+      await idb.put('thumbs', b, c.id); c.meta.hasThumb = true;
+      if (S.thumbUrls.has(c.id)) { URL.revokeObjectURL(S.thumbUrls.get(c.id)); S.thumbUrls.delete(c.id); }
+    } catch {}
+  }
   try { c.meta.lastPage = c.curPage; c.meta.openedAt = Date.now(); await idb.put('docs', c.meta); S.docs.set(c.id, { ...c.meta }); } catch {}
   c.io && c.io.disconnect();
   for (const pg of c.pages) unrender(c, pg);
@@ -1161,17 +1225,25 @@ async function exportPdf() {
   const c = cur; if (!c) return;
   const btn = $('#export'); const lbl = btn.lastElementChild; const orig = lbl.innerHTML;
   btn.disabled = true; lbl.textContent = '만드는 중';
+  const isNote = c.meta.kind === 'note';
   try {
     await flush(c);
     const L = await loadPdfLib();
-    const blob = await idb.get('files', c.id);
-    if (!blob) throw new UErr('원본 PDF가 없어요. "PDF 다시 연결"로 연결해 주세요.');
-    const out = await L.PDFDocument.load(await blob.arrayBuffer(), { ignoreEncryption: true });
+    let out;
+    if (isNote) {
+      out = await L.PDFDocument.create();
+      const font = await out.embedFont(L.StandardFonts.Helvetica);
+      c.sizes.forEach((sz, i) => { const pp = out.addPage([sz[0], sz[1]]); drawTplPdf(L, pp, font, tplOps(c.meta.tpl && c.meta.tpl[i], sz[0], sz[1]), sz[1]); });
+    } else {
+      const blob = await idb.get('files', c.id);
+      if (!blob) throw new UErr('원본 PDF가 없어요. "PDF 다시 연결"로 연결해 주세요.');
+      out = await L.PDFDocument.load(await blob.arrayBuffer(), { ignoreEncryption: true });
+    }
     const ctxr = out.context;
     for (const [i, strokes] of c.strokes) {
       if (!strokes.length || i >= out.getPageCount()) continue;
       const page = out.getPage(i);
-      const vp = (await getPdfPage(c, i)).getViewport({ scale: 1 });
+      const conv = isNote ? (ph => (x, y) => [x, ph - y])(c.sizes[i][1]) : (vp => (x, y) => vp.convertToPdfPoint(x, y))((await getPdfPage(c, i)).getViewport({ scale: 1 }));
       try { page.node.wrapContentStreams(ctxr.register(ctxr.contentStream([L.pushGraphicsState()])), ctxr.register(ctxr.contentStream([L.popGraphicsState()]))); } catch {}
       page.pushOperators(L.pushGraphicsState(), L.setLineJoin(L.LineJoinStyle.Round));
       const ordered = strokes.filter(s => s.t === 'h').concat(strokes.filter(s => s.t !== 'h'));
@@ -1179,7 +1251,7 @@ async function exportPdf() {
         let d = '';
         const n = st.pts.length / 2;
         for (let j = 0; j < n; j++) {
-          const [px, py] = vp.convertToPdfPoint(st.pts[2 * j], st.pts[2 * j + 1]);
+          const [px, py] = conv(st.pts[2 * j], st.pts[2 * j + 1]);
           d += (j ? 'L' : 'M') + px.toFixed(2) + ' ' + (-py).toFixed(2) + ' ';
           if (n === 1) d += 'L' + (px + 0.05).toFixed(2) + ' ' + (-py).toFixed(2) + ' ';
         }
@@ -1191,7 +1263,7 @@ async function exportPdf() {
       page.pushOperators(L.popGraphicsState());
     }
     const bytes = await out.save();
-    offerFile(new Blob([bytes], { type: 'application/pdf' }), baseName(c.meta.name) + '_필기.pdf', '필기가 들어간 PDF가 준비됐어요');
+    offerFile(new Blob([bytes], { type: 'application/pdf' }), baseName(c.meta.name) + (isNote ? '.pdf' : '_필기.pdf'), isNote ? '노트 PDF가 준비됐어요' : '필기가 들어간 PDF가 준비됐어요');
   } catch (e) {
     toast(e instanceof UErr ? e.message : 'PDF를 만들지 못했어요. 다시 시도해 주세요.', 4000);
   } finally { btn.disabled = false; lbl.innerHTML = orig; }
@@ -1223,7 +1295,7 @@ viewer.addEventListener('touchstart', e => {
   const c = cur; if (!c) return;
   touchCount = directTouches(e).length;
   const d0 = directTouches(e);
-  tap = (d0.length === 1 && e.touches.length === 1 && !ui.finger && performance.now() - lastPen > 500) ? { x: d0[0].clientX, y: d0[0].clientY, t: performance.now() } : null;
+  tap = (d0.length === 1 && e.touches.length === 1 && !ui.finger && performance.now() - lastPen > 500 && !(e.target.closest && e.target.closest('button'))) ? { x: d0[0].clientX, y: d0[0].clientY, t: performance.now() } : null;
   if ([...e.changedTouches].some(t => t.touchType === 'stylus')) { e.preventDefault(); return; }
   const direct = directTouches(e);
   const penBusy = (c.active && c.active.type === 'pen') || performance.now() - lastPen < 500;
@@ -1355,6 +1427,188 @@ document.addEventListener('keydown', e => {
   if (e.key === 'p' || e.key === 'P') setTool('pen');
   else if (e.key === 'h' || e.key === 'H') setTool('hl');
   else if (e.key === 'e' || e.key === 'E') setTool('eraser');
+});
+
+/* ---------- notebooks: templates, new note, add/delete pages ---------- */
+const TPLS = [['blank', '백지'], ['lined', '줄 노트'], ['dated', '날짜 노트'], ['grid', '모눈'], ['dot', '점 모눈'], ['cornell', '코넬 노트']];
+const TPL_SET = new Set(TPLS.map(t => t[0]));
+const A4 = [595.28, 841.89];
+const WD = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+function dateLabel(t) {
+  const d = new Date(t || Date.now());
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}  ${WD[d.getDay()]}`;
+}
+function tplOps(tpl, w, h) {
+  const ops = [], t = (tpl && tpl.t) || 'blank', mx = 36, gap = 24;
+  const RULE = '#C5CFDC', SOFT = '#DDE3EB', ACC = '#97A8C1', DOT = '#A9B4C3';
+  const L = (x1, y1, x2, y2, c, lw) => ops.push({ k: 'l', x1, y1, x2, y2, c, lw });
+  const rules = (top, bottom, left) => { for (let y = top; y <= bottom; y += gap) L(left, y, w - mx, y, RULE, 0.6); };
+  if (t === 'lined') rules(72, h - 36, mx);
+  else if (t === 'dated') {
+    ops.push({ k: 't', x: mx, y: 48, s: 13, c: '#4A5260', text: dateLabel(tpl.d) });
+    L(mx, 60, w - mx, 60, ACC, 1);
+    rules(92, h - 36, mx);
+  } else if (t === 'grid' || t === 'dot') {
+    const g = 14.1732, ox = (w % g) / 2, oy = (h % g) / 2;
+    if (t === 'grid') {
+      for (let x = ox; x <= w; x += g) L(x, 0, x, h, SOFT, 0.5);
+      for (let y = oy; y <= h; y += g) L(0, y, w, y, SOFT, 0.5);
+    } else for (let x = ox + g; x < w - 1; x += g) for (let y = oy + g; y < h - 1; y += g) ops.push({ k: 'd', x, y, r: 0.85, c: DOT });
+  } else if (t === 'cornell') {
+    const cue = Math.round(w * 0.28), sum = h - Math.round(h * 0.18);
+    L(mx, 72, w - mx, 72, ACC, 1);
+    L(cue, 72, cue, sum, ACC, 1);
+    L(mx, sum, w - mx, sum, ACC, 1);
+    rules(72 + gap, sum - 12, cue + 8);
+  }
+  return ops;
+}
+function drawTpl(ctx, ops) {
+  ctx.lineCap = 'butt';
+  for (const o of ops) {
+    if (o.k === 'l') { ctx.strokeStyle = o.c; ctx.lineWidth = o.lw; ctx.beginPath(); ctx.moveTo(o.x1, o.y1); ctx.lineTo(o.x2, o.y2); ctx.stroke(); }
+    else if (o.k === 'd') { ctx.fillStyle = o.c; ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2); ctx.fill(); }
+    else if (o.k === 't') { ctx.fillStyle = o.c; ctx.font = `${o.s}px "Helvetica Neue", Helvetica, Arial, sans-serif`; ctx.textBaseline = 'alphabetic'; ctx.fillText(o.text, o.x, o.y); }
+  }
+}
+function drawTplPdf(L, page, font, ops, h) {
+  for (const o of ops) {
+    if (o.k === 'l') page.drawLine({ start: { x: o.x1, y: h - o.y1 }, end: { x: o.x2, y: h - o.y2 }, thickness: o.lw, color: hexRgb(L, o.c) });
+    else if (o.k === 'd') page.drawCircle({ x: o.x, y: h - o.y, size: o.r, color: hexRgb(L, o.c) });
+    else if (o.k === 't') page.drawText(o.text, { x: o.x, y: h - o.y, size: o.s, font, color: hexRgb(L, o.c) });
+  }
+}
+async function noteThumb(meta, strokes) {
+  const [w, h] = meta.sizes[0], W = 360, k = W / w;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = Math.round(h * k);
+  const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  drawTpl(ctx, tplOps(meta.tpl && meta.tpl[0], w, h));
+  ctx.globalCompositeOperation = 'multiply';
+  (strokes || []).filter(s => s.t === 'h').forEach(s => drawStroke(ctx, s));
+  ctx.globalCompositeOperation = 'source-over';
+  (strokes || []).filter(s => s.t !== 'h').forEach(s => drawStroke(ctx, s));
+  const b = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.85));
+  cv.width = cv.height = 0;
+  return b;
+}
+function tplPreview(t, or) {
+  const [w, h] = or === 'l' ? [A4[1], A4[0]] : A4;
+  const W = or === 'l' ? 84 : 60, k = W / w, dpr = 2;
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(W * dpr); cv.height = Math.round(h * k * dpr);
+  cv.style.width = W + 'px'; cv.style.height = Math.round(h * k) + 'px';
+  const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(k * dpr, 0, 0, k * dpr, 0, 0);
+  drawTpl(ctx, tplOps({ t, d: Date.now() }, w, h).map(o => o.k === 'l' ? { ...o, lw: Math.max(o.lw, 4) } : o.k === 'd' ? { ...o, r: Math.max(o.r, 3) } : o));
+  return cv;
+}
+function renderTplButtons(box, selected, or, onPick) {
+  box.replaceChildren();
+  for (const [t, nm] of TPLS) {
+    const b = document.createElement('button'); b.className = 'tplb'; b.type = 'button';
+    if (selected) b.setAttribute('aria-pressed', String(t === selected));
+    const s = document.createElement('span'); s.textContent = nm;
+    b.append(tplPreview(t, or), s);
+    b.onclick = () => onPick(t);
+    box.appendChild(b);
+  }
+}
+
+let newOr = ui.lastOr === 'l' ? 'l' : 'p', newTpl = TPL_SET.has(ui.lastTpl) ? ui.lastTpl : 'lined';
+function renderNew() {
+  renderTplButtons($('#new-tpls'), newTpl, newOr, t => { newTpl = t; renderNew(); });
+  $$('#new-or [data-or]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.or === newOr)));
+}
+function openNewSheet() {
+  const d = new Date();
+  $('#new-name').value = `노트 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+  renderNew();
+  $('#new-sheet').hidden = false;
+}
+async function createNote(name, t, or) {
+  const sz = or === 'l' ? [A4[1], A4[0]] : A4.slice();
+  const now = Date.now();
+  const meta = { id: newId(), kind: 'note', name, pages: 1, sizes: [sz], tpl: [{ t, d: now }], size: 0, hasThumb: true, createdAt: now, updatedAt: now, lastPage: 0 };
+  const thumb = await noteThumb(meta, []);
+  await wr(['docs', 'thumbs'], tx => { tx.objectStore('thumbs').put(thumb, meta.id); tx.objectStore('docs').put(meta); });
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch {}
+  S.docs.set(meta.id, meta);
+  renderLib(); refreshUsage();
+  openDoc(meta.id);
+}
+$$('#new-or [data-or]').forEach(b => b.addEventListener('click', () => { newOr = b.dataset.or; renderNew(); }));
+$('#new-cancel').addEventListener('click', () => { $('#new-sheet').hidden = true; });
+$('#new-go').addEventListener('click', async () => {
+  const name = ($('#new-name').value || '').trim().slice(0, 80) || '새 노트';
+  ui.lastTpl = newTpl; ui.lastOr = newOr; saveUi();
+  const b = $('#new-go'); b.disabled = true;
+  try { $('#new-name').blur(); await createNote(name, newTpl, newOr); $('#new-sheet').hidden = true; }
+  catch (e) { toast(storeErr(e), 4000); }
+  finally { b.disabled = false; }
+});
+$('#new-btn').addEventListener('click', openNewSheet);
+$('#empty-new').addEventListener('click', openNewSheet);
+
+async function restructure(c, order, focusIdx) {
+  if (c.active) abortStroke(c);
+  if (!(await flush(c))) { toast('저장하지 못한 필기가 있어서 페이지를 바꾸지 않았어요.', 4000); return; }
+  const old = c.strokes, ns = new Map();
+  order.forEach((o, i) => { if (o.src != null && old.has(o.src)) ns.set(i, old.get(o.src)); });
+  const meta = { ...c.meta, tpl: order.map(o => o.tpl), sizes: order.map(o => o.size), pages: order.length, updatedAt: Date.now(), lastPage: focusIdx };
+  try {
+    const prev = await idb.pagesOf(c.id);
+    await wr(['pages', 'docs'], tx => {
+      const ps = tx.objectStore('pages');
+      prev.forEach(r => ps.delete(r.key));
+      for (const [i, arr] of ns) if (arr.length) ps.put({ key: `${c.id}:${i}`, docId: c.id, page: i, s: arr.map(encStroke) });
+      tx.objectStore('docs').put(meta);
+    });
+  } catch (e) { toast(storeErr(e), 4000); return; }
+  if (cur !== c) return;
+  c.meta = meta; c.sizes = meta.sizes; c.n = meta.pages; c.strokes = ns;
+  c.undo = []; c.redo = []; updateUndo();
+  S.docs.set(c.id, { ...meta });
+  c.io.disconnect();
+  for (const pg of c.pages) unrender(c, pg);
+  c.pages = []; c.addBtn = null;
+  buildPages(c); layout();
+  c.pages.forEach(pg => c.io.observe(pg.el));
+  requestAnimationFrame(() => { scrollToPage(focusIdx); onScroll(); });
+}
+function pageOrder(c) { return c.pages.map((pg, i) => ({ src: i, tpl: (c.meta.tpl && c.meta.tpl[i]) || { t: 'blank', d: c.meta.createdAt }, size: c.sizes[i] })); }
+async function addPage(c, after, t) {
+  const order = pageOrder(c);
+  order.splice(after + 1, 0, { src: null, tpl: { t, d: Date.now() }, size: c.sizes[after].slice() });
+  await restructure(c, order, after + 1);
+  toast(`${after + 2}쪽을 추가했어요`);
+}
+async function deletePage(c, idx) {
+  if (c.n <= 1) return;
+  const order = pageOrder(c); order.splice(idx, 1);
+  await restructure(c, order, Math.min(idx, order.length - 1));
+  toast(`${idx + 1}쪽을 삭제했어요`);
+}
+let psIdx = 0, delArmed = false;
+function openPageSheet() {
+  const c = cur; if (!c || c.meta.kind !== 'note') return;
+  psIdx = c.curPage;
+  $('#ps-addlbl').textContent = `${psIdx + 1}쪽 뒤에 새 페이지 추가`;
+  const sz = c.sizes[psIdx], or = sz[0] > sz[1] ? 'l' : 'p';
+  renderTplButtons($('#ps-tpls'), null, or, t => { $('#page-sheet').hidden = true; addPage(c, psIdx, t); });
+  delArmed = false;
+  const del = $('#ps-del');
+  del.textContent = `${psIdx + 1}쪽 삭제`;
+  del.disabled = c.n <= 1;
+  $('#page-sheet').hidden = false;
+}
+$('#pages-btn').addEventListener('click', openPageSheet);
+$('#ps-close').addEventListener('click', () => { $('#page-sheet').hidden = true; });
+$('#ps-del').addEventListener('click', () => {
+  const c = cur; if (!c) return;
+  if (!delArmed) { delArmed = true; $('#ps-del').textContent = '한 번 더 누르면 삭제돼요'; return; }
+  $('#page-sheet').hidden = true;
+  deletePage(c, psIdx);
 });
 
 /* ---------- library wiring ---------- */
