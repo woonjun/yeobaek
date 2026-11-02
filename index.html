@@ -122,6 +122,11 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .wd[aria-pressed="true"]{background:var(--surface-2)}
 .wd[aria-pressed="true"] span{background:var(--accent)}
 .zoom{display:flex;align-items:center}
+.emode{height:32px;padding:0 10px;border-radius:9px;border:1px solid var(--line);background:var(--surface);font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap}
+.emode[aria-pressed="true"]{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.wd span.ring{background:transparent!important;border:1.8px solid var(--fg);border-radius:50%}
+.wd[aria-pressed="true"] span.ring{border-color:var(--accent)}
+.ecur{position:fixed;left:0;top:0;border:1.5px solid var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:50%;pointer-events:none;z-index:7;transform:translate(-50%,-50%)}
 .zlabel{min-width:56px;height:40px;border:0;background:none;font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;color:var(--muted);border-radius:10px}
 #viewer{flex:1;overflow:auto;background:var(--desk);touch-action:pan-x pan-y;overscroll-behavior:contain;position:relative;-webkit-overflow-scrolling:touch}
 #pages{position:relative;display:flex;flex-direction:column;align-items:center;gap:16px;padding-top:24px;padding-bottom:calc(120px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));min-width:100%;width:max-content}
@@ -198,7 +203,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         <button class="btn primary" id="empty-import"><svg class="i"><use href="#i-in"/></svg>PDF 불러오기</button>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v3</span>
+        <span class="usage"><span id="usage"></span> · v4</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -252,6 +257,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
       <button class="btn" id="relink-btn">PDF 다시 연결</button>
     </div>
     <div class="pageind" id="pageind">1 / 1</div>
+    <div class="ecur" id="ecur" hidden></div>
   </section>
 </div>
 
@@ -275,7 +281,7 @@ const PEN_COLORS = ['#1B1F24', '#2747C9', '#D2343F', '#1F8A5B'];
 const HL_COLORS  = ['#FFE45C', '#B9F27C', '#A6DDFF', '#FFB3D1'];
 const PEN_W = [1.1, 1.9, 3.0];            // PDF points
 const HL_W  = [8, 12, 18];
-const ERASE_R = 10;                        // CSS px
+const ER_R  = [3, 8, 16];                  // eraser radius, PDF points
 const PDFJS_OPTS = { cMapUrl: 'vendor/cmaps/', cMapPacked: true, standardFontDataUrl: 'vendor/standard_fonts/', isEvalSupported: false };
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -283,7 +289,7 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 class UErr extends Error {}
 
-const ui = { tool: 'pen', penColor: 0, hlColor: 0, penW: 1, hlW: 1, finger: false };
+const ui = { tool: 'pen', penColor: 0, hlColor: 0, penW: 1, hlW: 1, erW: 1, erMode: 'part', finger: false };
 try { Object.assign(ui, JSON.parse(localStorage.getItem('yb.ui') || '{}')); } catch {}
 function saveUi() { try { localStorage.setItem('yb.ui', JSON.stringify(ui)); } catch {} }
 
@@ -940,8 +946,8 @@ pagesEl.addEventListener('pointerdown', e => {
   try { el.setPointerCapture(e.pointerId); } catch {}
   const pt = toPage(pg, e);
   if (ui.tool === 'eraser') {
-    c.active = { pg, id: e.pointerId, type: e.pointerType, erase: { page: pg.i, items: [] } };
-    eraseAt(c, pg, pt); return;
+    c.active = { pg, id: e.pointerId, type: e.pointerType, erase: { page: pg.i, before: (c.strokes.get(pg.i) || []).slice(), changed: false } };
+    showCursor(c, e); eraseAt(c, pg, pt); return;
   }
   const t = ui.tool === 'hl' ? 'h' : 'p';
   const st = { t, c: t === 'h' ? HL_COLORS[ui.hlColor] : PEN_COLORS[ui.penColor], w: t === 'h' ? HL_W[ui.hlW] : PEN_W[ui.penW], pts: [pt.x, pt.y], pr: [pq(e)] };
@@ -949,9 +955,12 @@ pagesEl.addEventListener('pointerdown', e => {
 });
 
 pagesEl.addEventListener('pointermove', e => {
-  const c = cur; if (!c || !c.active || e.pointerId !== c.active.id) return;
+  const c = cur; if (!c) return;
+  if (!c.active) { if (ui.tool === 'eraser' && e.pointerType !== 'touch') showCursor(c, e); return; }
+  if (e.pointerId !== c.active.id) return;
   e.preventDefault();
   const a = c.active;
+  if (a.erase) showCursor(c, e);
   if (a.type === 'pen') lastPen = performance.now();
   const evs = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
   for (const ev of (evs.length ? evs : [e])) {
@@ -970,7 +979,8 @@ function endPointer(e, cancel) {
   const a = c.active; c.active = null;
   if (a.type === 'pen') lastPen = performance.now();
   if (a.erase) {
-    if (a.erase.items.length) { c.undo.push({ type: 'erase', page: a.erase.page, items: a.erase.items }); c.redo = []; markDirty(c, a.erase.page); }
+    if (e.pointerType === 'touch') hideCursor();
+    if (a.erase.changed) { c.undo.push({ type: 'snap', page: a.erase.page, before: a.erase.before, after: (c.strokes.get(a.erase.page) || []).slice() }); c.redo = []; markDirty(c, a.erase.page); }
     return;
   }
   if (cancel && a.type !== 'pen') { redrawPage(c, a.pg); return; }
@@ -986,9 +996,7 @@ pagesEl.addEventListener('pointercancel', e => endPointer(e, true));
 function abortStroke(c) {
   const a = c.active; if (!a) return;
   c.active = null;
-  if (a.erase) {
-    for (let j = a.erase.items.length - 1; j >= 0; j--) { const it = a.erase.items[j]; (c.strokes.get(a.erase.page) || []).splice(it.idx, 0, it.st); }
-  }
+  if (a.erase) { c.strokes.set(a.erase.page, a.erase.before.slice()); hideCursor(); }
   redrawPage(c, a.pg);
 }
 
@@ -1012,21 +1020,61 @@ function hits(st, pt, r) {
   }
   return false;
 }
+/* Partial erase: cut away only the part of a stroke under the eraser circle. */
+function cutStroke(st, pt, r) {
+  const rr = r + (st.t === 'h' ? st.w : penWidth(st.w, 5)) * 0.5, b = bbox(st);
+  if (pt.x < b[0] - rr || pt.x > b[2] + rr || pt.y < b[1] - rr || pt.y > b[3] + rr) return null;
+  const p = st.pts, pr = st.pr, n = p.length / 2;
+  const X = [], Y = [], P = [], O = [];
+  const step = Math.max(0.3, r / 3);
+  for (let j = 0; j < n; j++) {
+    X.push(p[2 * j]); Y.push(p[2 * j + 1]); P.push(pr[j]); O.push(true);
+    if (j < n - 1) {
+      const dx = p[2 * j + 2] - p[2 * j], dy = p[2 * j + 3] - p[2 * j + 1];
+      const k = Math.floor(Math.hypot(dx, dy) / step);
+      for (let m = 1; m < k; m++) { const t = m / k; X.push(p[2 * j] + dx * t); Y.push(p[2 * j + 1] + dy * t); P.push(pr[j]); O.push(false); }
+    }
+  }
+  let any = false;
+  const inside = X.map((x, i) => { const v = Math.hypot(x - pt.x, Y[i] - pt.y) <= rr; if (v) any = true; return v; });
+  if (!any) return null;
+  if (n === 1) return [];
+  const out = []; let run = null;
+  for (let i = 0; i < X.length; i++) {
+    if (inside[i]) { if (run && run.pr.length > 1) out.push(run); run = null; continue; }
+    if (!run) run = { t: st.t, c: st.c, w: st.w, pts: [], pr: [] };
+    if (!O[i] && !inside[i - 1] && !inside[i + 1] && i !== X.length - 1) continue;
+    run.pts.push(X[i], Y[i]); run.pr.push(P[i]);
+  }
+  if (run && run.pr.length > 1) out.push(run);
+  return out;
+}
 function eraseAt(c, pg, pt) {
   const arr = c.strokes.get(pg.i); if (!arr || !arr.length) return;
-  const r = ERASE_R / c.scale; let changed = false;
+  const r = ER_R[ui.erW]; let changed = false;
   for (let i = arr.length - 1; i >= 0; i--) {
-    if (hits(arr[i], pt, r)) { const st = arr.splice(i, 1)[0]; c.active.erase.items.push({ idx: i, st }); changed = true; }
+    if (ui.erMode === 'stroke') { if (hits(arr[i], pt, r)) { arr.splice(i, 1); changed = true; } }
+    else { const pieces = cutStroke(arr[i], pt, r); if (pieces) { arr.splice(i, 1, ...pieces); changed = true; } }
   }
-  if (changed) redrawPage(c, pg);
+  if (changed) { c.active.erase.changed = true; redrawPage(c, pg); }
 }
+const ecur = $('#ecur');
+function showCursor(c, e) {
+  const d = 2 * ER_R[ui.erW] * c.scale;
+  ecur.style.width = ecur.style.height = d + 'px';
+  ecur.style.left = e.clientX + 'px'; ecur.style.top = e.clientY + 'px';
+  ecur.hidden = false;
+}
+function hideCursor() { ecur.hidden = true; }
+pagesEl.addEventListener('pointerleave', e => { if (!cur || !cur.active) hideCursor(); });
 
 /* ---------- undo / redo ---------- */
 function undo() {
   const c = cur; if (!c || c.active) return;
   const a = c.undo.pop(); if (!a) return;
   const arr = c.strokes.get(a.page) || []; c.strokes.set(a.page, arr);
-  if (a.type === 'add') { const i = arr.indexOf(a.st); if (i >= 0) arr.splice(i, 1); }
+  if (a.type === 'snap') c.strokes.set(a.page, a.before.slice());
+  else if (a.type === 'add') { const i = arr.indexOf(a.st); if (i >= 0) arr.splice(i, 1); }
   else for (let j = a.items.length - 1; j >= 0; j--) arr.splice(Math.min(a.items[j].idx, arr.length), 0, a.items[j].st);
   c.redo.push(a); redrawPage(c, c.pages[a.page]); markDirty(c, a.page);
 }
@@ -1034,7 +1082,8 @@ function redo() {
   const c = cur; if (!c || c.active) return;
   const a = c.redo.pop(); if (!a) return;
   const arr = c.strokes.get(a.page) || []; c.strokes.set(a.page, arr);
-  if (a.type === 'add') arr.push(a.st);
+  if (a.type === 'snap') c.strokes.set(a.page, a.after.slice());
+  else if (a.type === 'add') arr.push(a.st);
   else for (const it of a.items) { const i = arr.indexOf(it.st); if (i >= 0) arr.splice(i, 1); }
   c.undo.push(a); redrawPage(c, c.pages[a.page]); markDirty(c, a.page);
 }
@@ -1215,8 +1264,26 @@ function renderTools() {
   $$('[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === ui.tool)));
   const sw = $('#swatches'), wd = $('#widths');
   sw.replaceChildren(); wd.replaceChildren();
-  sw.hidden = wd.hidden = ui.tool === 'eraser';
-  if (ui.tool === 'eraser') return;
+  sw.hidden = wd.hidden = false;
+  if (ui.tool === 'eraser') {
+    hideCursor();
+    [['part', '부분 지우기'], ['stroke', '획 전체']].forEach(([m, nm]) => {
+      const b = document.createElement('button'); b.className = 'emode'; b.textContent = nm;
+      b.setAttribute('aria-pressed', String(ui.erMode === m));
+      b.onclick = () => { ui.erMode = m; saveUi(); renderTools(); };
+      sw.appendChild(b);
+    });
+    [[8, '작게'], [13, '보통'], [19, '크게']].forEach(([px, nm], i) => {
+      const b = document.createElement('button'); b.className = 'wd'; b.title = '지우개 ' + nm; b.setAttribute('aria-label', '지우개 ' + nm);
+      b.setAttribute('aria-pressed', String(ui.erW === i));
+      const s = document.createElement('span'); s.className = 'ring'; s.style.width = s.style.height = px + 'px';
+      b.appendChild(s);
+      b.onclick = () => { ui.erW = i; saveUi(); renderTools(); };
+      wd.appendChild(b);
+    });
+    return;
+  }
+  hideCursor();
   const hl = ui.tool === 'hl';
   const names = hl ? ['노랑', '연두', '하늘', '분홍'] : ['검정', '파랑', '빨강', '초록'];
   (hl ? HL_COLORS : PEN_COLORS).forEach((col, i) => {
