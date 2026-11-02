@@ -164,6 +164,9 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .segs .emode{height:36px;padding:0 16px;font-size:13px}
 .sheet-card .row.spread{justify-content:space-between}
 .danger-ghost{color:var(--danger)}
+.datebtn{position:absolute;z-index:2;border:0;background:transparent;border-radius:6px;padding:0;display:flex;align-items:center;justify-content:flex-end;color:#8A93A3}
+.datebtn svg{width:16px;height:16px;opacity:.6;margin-right:2px}
+.datebtn:hover,.datebtn:focus-visible,.datebtn:active{background:rgba(39,71,201,.08)}
 .addpage{flex:none;height:72px;max-width:100%;border:1.5px dashed var(--line);border-radius:6px;background:transparent;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:8px;font-weight:500}
 @media (max-width:1180px){.btn .lbl-long{display:none}}
 @media (max-width:920px){
@@ -189,6 +192,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
   <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
   <symbol id="i-pages" viewBox="0 0 24 24"><rect x="7" y="3" width="12" height="15" rx="1.5"/><path d="M5 7v12a2 2 0 0 0 2 2h9"/><path d="M13 7.5v6M10 10.5h6"/></symbol>
   <symbol id="i-note" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></symbol>
   <symbol id="i-hide" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
   <symbol id="i-show" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l.9 12.5a1.5 1.5 0 0 0 1.5 1.5h6.2a1.5 1.5 0 0 0 1.5-1.5L17.5 7"/></symbol>
@@ -227,7 +231,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v5</span>
+        <span class="usage"><span id="usage"></span> · v6</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -302,11 +306,19 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
     <div class="row"><button class="btn" id="new-cancel">닫기</button><button class="btn primary" id="new-go">만들기</button></div>
   </div>
 </div>
+<div class="sheet" id="date-sheet" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="ds-title">
+    <b id="ds-title">날짜 바꾸기</b>
+    <p id="ds-sub"></p>
+    <label class="fld" for="ds-date"><span>날짜</span><input id="ds-date" type="date"></label>
+    <div class="row spread"><button class="btn" id="ds-today">오늘로</button><span class="row"><button class="btn" id="ds-cancel">닫기</button><button class="btn primary" id="ds-save">저장</button></span></div>
+  </div>
+</div>
 <div class="sheet" id="page-sheet" hidden>
   <div class="sheet-card wide" role="dialog" aria-modal="true" aria-labelledby="ps-title">
     <b id="ps-title">페이지</b>
     <div class="fld"><span id="ps-addlbl"></span><div class="tpls" id="ps-tpls"></div></div>
-    <div class="row spread"><button class="btn danger-ghost" id="ps-del"></button><button class="btn" id="ps-close">닫기</button></div>
+    <div class="row spread"><span class="row"><button class="btn danger-ghost" id="ps-del"></button><button class="btn" id="ps-date" hidden><svg class="i"><use href="#i-cal"/></svg>날짜 바꾸기</button></span><button class="btn" id="ps-close">닫기</button></div>
   </div>
 </div>
 <div id="toast" role="status" hidden></div>
@@ -783,6 +795,7 @@ function buildPages(c) {
     const ph = document.createElement('span'); ph.className = 'ph'; ph.textContent = i + 1;
     el.appendChild(ph);
     c.pages.push({ i, w, h, el, ph, pdfC: null, hl: null, ink: null, renderedScale: 0, visible: false, failed: false });
+    if (c.meta.kind === 'note' && ((c.meta.tpl || [])[i] || {}).t === 'dated') el.appendChild(dateBtn(c, i, w, h));
     els.push(el);
   }
   if (c.meta.kind === 'note') {
@@ -992,6 +1005,7 @@ function shouldDraw(e) {
 
 pagesEl.addEventListener('pointerdown', e => {
   const c = cur; if (!c || c.pinch) return;
+  if (e.target.closest && e.target.closest('.datebtn')) return;
   const el = e.target.closest('.page'); if (!el) return;
   if (!shouldDraw(e)) return;
   if (e.pointerType === 'pen') lastPen = performance.now();
@@ -1600,9 +1614,51 @@ function openPageSheet() {
   const del = $('#ps-del');
   del.textContent = `${psIdx + 1}쪽 삭제`;
   del.disabled = c.n <= 1;
+  $('#ps-date').hidden = ((c.meta.tpl || [])[psIdx] || {}).t !== 'dated';
   $('#page-sheet').hidden = false;
 }
 $('#pages-btn').addEventListener('click', openPageSheet);
+
+/* ---------- editable date on dated pages ---------- */
+let dsIdx = 0, dbTap = 0;
+const ymdInput = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+function dateBtn(c, i, w, h) {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'datebtn';
+  b.setAttribute('aria-label', `${i + 1}쪽 날짜 바꾸기`); b.title = '날짜 바꾸기';
+  Object.assign(b.style, { left: (30 / w * 100) + '%', top: (28 / h * 100) + '%', width: (150 / w * 100) + '%', height: (28 / h * 100) + '%' });
+  b.innerHTML = '<svg class="i"><use href="#i-cal"/></svg>';
+  const open = e => { e.stopPropagation(); const now = performance.now(); if (now - dbTap < 400) return; dbTap = now; openDateSheet(i); };
+  b.addEventListener('pointerup', open);
+  b.addEventListener('click', open);
+  return b;
+}
+function openDateSheet(i) {
+  const c = cur; if (!c) return;
+  dsIdx = i;
+  const tp = (c.meta.tpl || [])[i] || {};
+  $('#ds-sub').textContent = `${i + 1}쪽 맨 위에 찍히는 날짜예요. 지금은 ${dateLabel(tp.d)}`;
+  $('#ds-date').value = ymdInput(tp.d || Date.now());
+  $('#date-sheet').hidden = false;
+}
+async function setPageDate(c, i, ts) {
+  const tpl = (c.meta.tpl || []).slice(); tpl[i] = { ...(tpl[i] || { t: 'dated' }), d: ts };
+  const meta = { ...c.meta, tpl, updatedAt: Date.now() };
+  await idb.put('docs', meta);
+  if (cur !== c) return;
+  c.meta = meta; S.docs.set(c.id, { ...meta });
+  const pg = c.pages[i]; if (pg) { pg.renderedScale = 0; pump(); }
+}
+$('#ds-today').addEventListener('click', () => { $('#ds-date').value = ymdInput(Date.now()); });
+$('#ds-cancel').addEventListener('click', () => { $('#date-sheet').hidden = true; });
+$('#ds-save').addEventListener('click', async () => {
+  const c = cur; if (!c) return;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec($('#ds-date').value || '');
+  if (!m) { toast('날짜를 골라 주세요.'); return; }
+  const ts = new Date(+m[1], +m[2] - 1, +m[3], 12).getTime();
+  try { await setPageDate(c, dsIdx, ts); $('#date-sheet').hidden = true; toast(`${dsIdx + 1}쪽 날짜를 ${dateLabel(ts)}로 바꿨어요`); }
+  catch (e) { toast(storeErr(e), 4000); }
+});
+$('#ps-date').addEventListener('click', () => { $('#page-sheet').hidden = true; openDateSheet(psIdx); });
 $('#ps-close').addEventListener('click', () => { $('#page-sheet').hidden = true; });
 $('#ps-del').addEventListener('click', () => {
   const c = cur; if (!c) return;

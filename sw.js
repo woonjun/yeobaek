@@ -1,5 +1,5 @@
 /* 여백 노트 service worker: works offline after the first visit. */
-const V = 'yeobaek-v5';
+const V = 'yeobaek-v6';
 const SHELL = [
   './', './index.html', './manifest.webmanifest',
   './icons/apple-touch-icon.png', './icons/icon-192.png', './icons/icon-512.png',
