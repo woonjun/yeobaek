@@ -170,6 +170,17 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .datebtn{position:absolute;z-index:2;border:0;background:transparent;border-radius:6px;padding:0;display:flex;align-items:center;justify-content:flex-end;color:#8A93A3}
 .datebtn svg{width:16px;height:16px;opacity:.6;margin-right:2px}
 .datebtn:hover,.datebtn:focus-visible,.datebtn:active{background:rgba(39,71,201,.08)}
+.page svg.lasso{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none;overflow:visible}
+.page svg.lasso polyline{fill:rgba(39,71,201,.06);stroke:#2747C9;stroke-width:1.5;stroke-dasharray:5 4;vector-effect:non-scaling-stroke}
+.sel{position:absolute;z-index:3;border:1.5px dashed #2747C9;background:rgba(39,71,201,.05);border-radius:4px;touch-action:none;cursor:move}
+.sel .h{position:absolute;right:-13px;bottom:-13px;width:26px;height:26px;border-radius:50%;background:#fff;border:2px solid #2747C9;box-shadow:0 1px 4px rgba(18,24,38,.25);cursor:nwse-resize;touch-action:none}
+.sel .h::after{content:"";position:absolute;inset:-10px}
+.selbar{position:absolute;z-index:4;transform:translate(-50%,calc(-100% - 10px));display:flex;gap:2px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);white-space:nowrap}
+.selbar.below{transform:translate(-50%,24px)}
+.selbar button{height:36px;padding:0 12px;border:0;background:none;border-radius:8px;font-size:13px;font-weight:500;color:var(--fg)}
+.selbar button:active{background:var(--surface-2)}
+.selbar button.danger{color:var(--danger)}
+.lasso-hint{font-size:13px;color:var(--muted);padding:0 6px;white-space:nowrap}
 .ctx-layer{position:fixed;inset:0;z-index:30}
 .ctx{position:fixed;left:0;top:0;min-width:220px;max-width:calc(100vw - 16px);background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:6px;display:flex;flex-direction:column}
 .ctx .hd{font:500 12px var(--f-mono);color:var(--muted);padding:6px 10px 4px;font-variant-numeric:tabular-nums}
@@ -205,6 +216,8 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
   <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></symbol>
   <symbol id="i-dir-v" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="8" rx="1.5"/><rect x="7" y="13.5" width="10" height="8" rx="1.5"/><path d="M3 9v6M1.5 13.5L3 15l1.5-1.5M1.5 10.5L3 9l1.5 1.5"/></symbol>
   <symbol id="i-dir-h" viewBox="0 0 24 24"><rect x="2.5" y="6" width="8" height="12" rx="1.5"/><rect x="13.5" y="6" width="8" height="12" rx="1.5"/><path d="M9 21.5h6M10.5 20L9 21.5l1.5 1.5M13.5 20l1.5 1.5-1.5 1.5"/></symbol>
+  <symbol id="i-lasso" viewBox="0 0 24 24"><path d="M12 4c4.7 0 8 2.3 8 5.3S16.7 15 12 15c-1.4 0-2.7-.2-3.8-.5" stroke-dasharray="2.4 2.4"/><path d="M8.2 14.5C5.6 13.6 4 11.6 4 9.3 4 6.3 7.3 4 12 4"/><path d="M8.2 14.5c-.9 1.5-.3 3.3 1.3 3.8 1.5.5 2.4 1.7 1.8 3.2"/></symbol>
+  <symbol id="i-paste" viewBox="0 0 24 24"><rect x="5" y="4.5" width="14" height="16.5" rx="2"/><path d="M9 4.5V3h6v1.5"/><path d="M9 11h6M9 15h4"/></symbol>
   <symbol id="i-hide" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
   <symbol id="i-show" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l.9 12.5a1.5 1.5 0 0 0 1.5 1.5h6.2a1.5 1.5 0 0 0 1.5-1.5L17.5 7"/></symbol>
@@ -243,7 +256,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v8</span>
+        <span class="usage"><span id="usage"></span> · v9</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -266,6 +279,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
           <button class="tool" data-tool="pen" title="펜 (P)" aria-label="펜"><svg class="i"><use href="#i-pen"/></svg></button>
           <button class="tool" data-tool="hl" title="형광펜 (H)" aria-label="형광펜"><svg class="i"><use href="#i-hl"/></svg></button>
           <button class="tool" data-tool="eraser" title="지우개 (E)" aria-label="지우개"><svg class="i"><use href="#i-er"/></svg></button>
+          <button class="tool" data-tool="lasso" title="올가미 선택 (L)" aria-label="올가미 선택"><svg class="i"><use href="#i-lasso"/></svg></button>
         </div>
         <div class="swatches" id="swatches"></div>
         <div class="widths" id="widths"></div>
@@ -291,6 +305,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
       <button class="tool" data-tool="pen" aria-label="펜"><svg class="i"><use href="#i-pen"/></svg></button>
       <button class="tool" data-tool="hl" aria-label="형광펜"><svg class="i"><use href="#i-hl"/></svg></button>
       <button class="tool" data-tool="eraser" aria-label="지우개"><svg class="i"><use href="#i-er"/></svg></button>
+      <button class="tool" data-tool="lasso" aria-label="올가미 선택"><svg class="i"><use href="#i-lasso"/></svg></button>
       <button class="tool" id="mini-undo" aria-label="실행취소" disabled><svg class="i"><use href="#i-undo"/></svg></button>
       <button class="tool" id="focus-off" aria-label="도구 모두 보이기"><svg class="i"><use href="#i-show"/></svg></button>
     </div>
@@ -998,7 +1013,15 @@ function redrawPage(c, pg) {
   h.setTransform(1, 0, 0, 1, 0, 0); h.clearRect(0, 0, pg.hl.width, pg.hl.height);
   k.setTransform(1, 0, 0, 1, 0, 0); k.clearRect(0, 0, pg.ink.width, pg.ink.height);
   setT(h, pg, pg.hl); setT(k, pg, pg.ink);
-  for (const st of c.strokes.get(pg.i) || []) drawStroke(st.t === 'h' ? h : k, st);
+  const sel = c.sel && c.sel.page === pg.i && (c.sel.dx || c.sel.dy || c.sel.k !== 1) ? c.sel : null;
+  for (const st of c.strokes.get(pg.i) || []) {
+    const ctx = st.t === 'h' ? h : k;
+    if (sel && sel.set.has(st)) {
+      const [x0, y0] = sel.bb;
+      ctx.save(); ctx.translate(x0 + sel.dx, y0 + sel.dy); ctx.scale(sel.k, sel.k); ctx.translate(-x0, -y0);
+      drawStroke(ctx, st); ctx.restore();
+    } else drawStroke(ctx, st);
+  }
 }
 function liveSeg(a) {
   const st = a.st, p = st.pts, n = p.length / 2;
@@ -1035,7 +1058,7 @@ function shouldDraw(e) {
 
 pagesEl.addEventListener('pointerdown', e => {
   const c = cur; if (!c || c.pinch) return;
-  if (e.target.closest && e.target.closest('.datebtn')) return;
+  if (e.target.closest && e.target.closest('.datebtn, .sel, .selbar')) return;
   const el = e.target.closest('.page'); if (!el) return;
   if (!shouldDraw(e)) return;
   if (e.pointerType === 'pen') lastPen = performance.now();
@@ -1046,6 +1069,12 @@ pagesEl.addEventListener('pointerdown', e => {
   e.preventDefault();
   try { el.setPointerCapture(e.pointerId); } catch {}
   const pt = toPage(pg, e);
+  if (c.sel) clearSel(c);
+  if (ui.tool === 'lasso') {
+    c.active = { pg, id: e.pointerId, type: e.pointerType, lasso: [pt.x, pt.y], ls: makeLassoSvg(pg) };
+    c.active.ls.pl.setAttribute('points', `${pt.x},${pt.y}`);
+    return;
+  }
   if (ui.tool === 'eraser') {
     c.active = { pg, id: e.pointerId, type: e.pointerType, erase: { page: pg.i, before: (c.strokes.get(pg.i) || []).slice(), changed: false } };
     showCursor(c, e); eraseAt(c, pg, pt); return;
@@ -1066,6 +1095,12 @@ pagesEl.addEventListener('pointermove', e => {
   const evs = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
   for (const ev of (evs.length ? evs : [e])) {
     const pt = toPage(a.pg, ev);
+    if (a.lasso) {
+      const L = a.lasso, lx = L[L.length - 2], ly = L[L.length - 1];
+      if (Math.hypot(pt.x - lx, pt.y - ly) < 2 / c.scale) continue;
+      L.push(pt.x, pt.y); a.ls.pl.setAttribute('points', L.join(' '));
+      continue;
+    }
     if (a.erase) { eraseAt(c, a.pg, pt); continue; }
     const p = a.st.pts, lx = p[p.length - 2], ly = p[p.length - 1];
     const min = 0.7 / c.scale;
@@ -1079,6 +1114,7 @@ function endPointer(e, cancel) {
   const c = cur; if (!c || !c.active || e.pointerId !== c.active.id) return;
   const a = c.active; c.active = null;
   if (a.type === 'pen') lastPen = performance.now();
+  if (a.lasso) { a.ls.svg.remove(); if (!cancel) finishLasso(c, a.pg, a.lasso); return; }
   if (a.erase) {
     if (e.pointerType === 'touch') hideCursor();
     if (a.erase.changed) { c.undo.push({ type: 'snap', page: a.erase.page, before: a.erase.before, after: (c.strokes.get(a.erase.page) || []).slice() }); c.redo = []; markDirty(c, a.erase.page); }
@@ -1097,6 +1133,7 @@ pagesEl.addEventListener('pointercancel', e => endPointer(e, true));
 function abortStroke(c) {
   const a = c.active; if (!a) return;
   c.active = null;
+  if (a.lasso) { a.ls.svg.remove(); return; }
   if (a.erase) { c.strokes.set(a.erase.page, a.erase.before.slice()); hideCursor(); }
   redrawPage(c, a.pg);
 }
@@ -1172,6 +1209,7 @@ pagesEl.addEventListener('pointerleave', e => { if (!cur || !cur.active) hideCur
 /* ---------- undo / redo ---------- */
 function undo() {
   const c = cur; if (!c || c.active) return;
+  clearSel(c);
   const a = c.undo.pop(); if (!a) return;
   const arr = c.strokes.get(a.page) || []; c.strokes.set(a.page, arr);
   if (a.type === 'snap') c.strokes.set(a.page, a.before.slice());
@@ -1181,6 +1219,7 @@ function undo() {
 }
 function redo() {
   const c = cur; if (!c || c.active) return;
+  clearSel(c);
   const a = c.redo.pop(); if (!a) return;
   const arr = c.strokes.get(a.page) || []; c.strokes.set(a.page, arr);
   if (a.type === 'snap') c.strokes.set(a.page, a.after.slice());
@@ -1243,6 +1282,7 @@ async function doFlush(c) {
 async function closeDoc(silent) {
   const c = cur; if (!c) return true;
   if (c.active) abortStroke(c);
+  clearSel(c);
   const ok = await flush(c);
   if (!ok && !silent) { toast('저장하지 못한 필기가 있어요. 다시 시도해 주세요.', 4000); return false; }
   if (c.meta.kind === 'note') {
@@ -1339,9 +1379,9 @@ viewer.addEventListener('touchstart', e => {
   const c = cur; if (!c) return;
   touchCount = directTouches(e).length;
   const d0 = directTouches(e);
-  tap = (d0.length === 1 && e.touches.length === 1 && !ui.finger && performance.now() - lastPen > 500 && !(e.target.closest && e.target.closest('button'))) ? { x: d0[0].clientX, y: d0[0].clientY, t: performance.now() } : null;
+  tap = (d0.length === 1 && e.touches.length === 1 && !ui.finger && performance.now() - lastPen > 500 && !(e.target.closest && e.target.closest('button, .sel, .selbar'))) ? { x: d0[0].clientX, y: d0[0].clientY, t: performance.now() } : null;
   cancelLp();
-  const lpEl = d0.length === 1 && e.touches.length === 1 && performance.now() - lastPen > 500 && e.target.closest && !e.target.closest('button') && e.target.closest('.page');
+  const lpEl = d0.length === 1 && e.touches.length === 1 && performance.now() - lastPen > 500 && e.target.closest && !e.target.closest('button, .sel, .selbar') && e.target.closest('.page');
   if (lpEl) {
     lp = { x: d0[0].clientX, y: d0[0].clientY, i: +lpEl.dataset.i };
     lp.t = setTimeout(() => {
@@ -1415,6 +1455,12 @@ function renderTools() {
   const sw = $('#swatches'), wd = $('#widths');
   sw.replaceChildren(); wd.replaceChildren();
   sw.hidden = wd.hidden = false;
+  if (ui.tool === 'lasso') {
+    hideCursor();
+    const hint = document.createElement('span'); hint.className = 'lasso-hint'; hint.textContent = '옮길 필기를 동그랗게 둘러 그리세요';
+    sw.appendChild(hint); wd.hidden = true;
+    return;
+  }
   if (ui.tool === 'eraser') {
     hideCursor();
     [['part', '부분 지우기'], ['stroke', '획 전체']].forEach(([m, nm]) => {
@@ -1454,7 +1500,7 @@ function renderTools() {
     wd.appendChild(b);
   });
 }
-function setTool(t) { ui.tool = t; saveUi(); renderTools(); }
+function setTool(t) { if (t !== 'lasso') clearSel(); ui.tool = t; saveUi(); renderTools(); }
 $$('[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
 function renderFinger() {
   $('#finger').setAttribute('aria-pressed', String(!!ui.finger));
@@ -1505,6 +1551,8 @@ document.addEventListener('keydown', e => {
   if (e.key === 'p' || e.key === 'P') setTool('pen');
   else if (e.key === 'h' || e.key === 'H') setTool('hl');
   else if (e.key === 'e' || e.key === 'E') setTool('eraser');
+  else if (e.key === 'l' || e.key === 'L') setTool('lasso');
+  else if ((e.key === 'Backspace' || e.key === 'Delete') && cur.sel) selDelete(cur);
 });
 
 /* ---------- notebooks: templates, new note, add/delete pages ---------- */
@@ -1653,6 +1701,7 @@ async function restructure(c, order, focusIdx, extra = {}) {
   if (extra.file) { try { c.pdf && c.pdf.destroy(); } catch {} c.pdf = null; c.pdfProm = null; c.failed = false; }
   c.io.disconnect();
   for (const pg of c.pages) unrender(c, pg);
+  c.sel = null;
   c.pages = []; c.addBtn = null;
   buildPages(c); layout();
   c.pages.forEach(pg => c.io.observe(pg.el));
@@ -1695,6 +1744,136 @@ async function deletePdfPage(c, idx) {
   } catch (e) { toast(e instanceof UErr ? e.message : '페이지를 지우지 못했어요. 다시 시도해 주세요.', 4000); }
 }
 
+/* ---------- lasso: select, move, resize, cut/copy/paste ---------- */
+function inPoly(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 2; i < poly.length; j = i, i += 2) {
+    const xi = poly[i], yi = poly[i + 1], xj = poly[j], yj = poly[j + 1];
+    if (((yi > y) !== (yj > y)) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function unionBB(list) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const st of list) {
+    const b = bbox(st), m = (st.t === 'h' ? st.w : penWidth(st.w, 9)) / 2 + 3;
+    x0 = Math.min(x0, b[0] - m); y0 = Math.min(y0, b[1] - m); x1 = Math.max(x1, b[2] + m); y1 = Math.max(y1, b[3] + m);
+  }
+  return [x0, y0, x1, y1];
+}
+function makeLassoSvg(pg) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${pg.w} ${pg.h}`); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('class', 'lasso');
+  const pl = document.createElementNS(NS, 'polyline');
+  svg.appendChild(pl); pg.el.appendChild(svg);
+  return { svg, pl };
+}
+function finishLasso(c, pg, poly) {
+  if (poly.length < 6) return;
+  const list = (c.strokes.get(pg.i) || []).filter(st => {
+    const n = st.pts.length / 2; let inside = 0;
+    for (let j = 0; j < n; j++) if (inPoly(st.pts[2 * j], st.pts[2 * j + 1], poly)) inside++;
+    return inside > 0 && inside >= n / 2;
+  });
+  if (!list.length) { toast('둘러싼 안에 필기가 없어요'); return; }
+  setSel(c, pg.i, list);
+}
+function onTap(el, fn) {
+  let last = 0;
+  const h = e => { e.stopPropagation(); const now = performance.now(); if (now - last < 400) return; last = now; fn(e); };
+  el.addEventListener('pointerup', h); el.addEventListener('click', h);
+  el.addEventListener('pointerdown', e => e.stopPropagation());
+}
+function clearSel(c) {
+  c = c || cur; if (!c || !c.sel) return;
+  const s = c.sel; c.sel = null;
+  s.el.remove(); s.bar.remove();
+  const pg = c.pages[s.page]; if (pg) redrawPage(c, pg);
+}
+function setSel(c, page, list) {
+  clearSel(c);
+  const pg = c.pages[page]; if (!pg) return;
+  const el = document.createElement('div'); el.className = 'sel';
+  const hd = document.createElement('span'); hd.className = 'h'; el.appendChild(hd);
+  const bar = document.createElement('div'); bar.className = 'selbar';
+  const btn = (label, fn, cls) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (cls) b.className = cls; onTap(b, fn); bar.appendChild(b); };
+  btn('잘라내기', () => selCopy(c, true));
+  btn('복사', () => selCopy(c, false));
+  btn('삭제', () => selDelete(c), 'danger');
+  pg.el.append(el, bar);
+  c.sel = { page, list, set: new Set(list), bb: unionBB(list), dx: 0, dy: 0, k: 1, el, bar, drag: null };
+  posSel(c);
+  el.addEventListener('pointerdown', e => {
+    const s = c.sel; if (!s || s.el !== el) return;
+    e.preventDefault(); e.stopPropagation();
+    if (e.pointerType === 'pen') lastPen = performance.now();
+    try { el.setPointerCapture(e.pointerId); } catch {}
+    const pt = toPage(c.pages[s.page], e);
+    s.drag = { id: e.pointerId, mode: e.target === hd ? 'scale' : 'move', sx: pt.x, sy: pt.y };
+  });
+  el.addEventListener('pointermove', e => {
+    const s = c.sel; if (!s || !s.drag || s.drag.id !== e.pointerId) return;
+    e.preventDefault();
+    const pt = toPage(c.pages[s.page], e), [x0, y0, x1, y1] = s.bb;
+    if (s.drag.mode === 'move') { s.dx = pt.x - s.drag.sx; s.dy = pt.y - s.drag.sy; }
+    else s.k = clamp(Math.max((pt.x - x0) / (x1 - x0), (pt.y - y0) / (y1 - y0)), 0.2, 5);
+    posSel(c);
+    if (!s.raf) s.raf = requestAnimationFrame(() => { s.raf = 0; if (c.sel === s) redrawPage(c, c.pages[s.page]); });
+  });
+  const end = e => { const s = c.sel; if (!s || !s.drag || s.drag.id !== e.pointerId) return; s.drag = null; commitSel(c); };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+}
+function posSel(c) {
+  const s = c.sel, pg = c.pages[s.page];
+  const [x0, y0, x1, y1] = s.bb;
+  const nx0 = x0 + s.dx, ny0 = y0 + s.dy, nx1 = nx0 + (x1 - x0) * s.k, ny1 = ny0 + (y1 - y0) * s.k;
+  Object.assign(s.el.style, { left: nx0 / pg.w * 100 + '%', top: ny0 / pg.h * 100 + '%', width: (nx1 - nx0) / pg.w * 100 + '%', height: (ny1 - ny0) / pg.h * 100 + '%' });
+  const below = ny0 < 60;
+  s.bar.classList.toggle('below', below);
+  Object.assign(s.bar.style, { left: (nx0 + nx1) / 2 / pg.w * 100 + '%', top: (below ? ny1 : ny0) / pg.h * 100 + '%' });
+  s.bar.hidden = !!s.drag;
+}
+function xform(st, s) {
+  const [x0, y0] = s.bb, pts = new Array(st.pts.length);
+  for (let i = 0; i < pts.length; i += 2) { pts[i] = x0 + s.dx + (st.pts[i] - x0) * s.k; pts[i + 1] = y0 + s.dy + (st.pts[i + 1] - y0) * s.k; }
+  return { t: st.t, c: st.c, w: st.w * s.k, pts, pr: st.pr.slice() };
+}
+function commitSel(c) {
+  const s = c.sel; if (!s) return;
+  if (!s.dx && !s.dy && s.k === 1) { posSel(c); return; }
+  const arr = c.strokes.get(s.page) || [], before = arr.slice();
+  const list = s.list.map(st => { const n = xform(st, s), i = arr.indexOf(st); if (i >= 0) arr[i] = n; return n; });
+  c.undo.push({ type: 'snap', page: s.page, before, after: arr.slice() }); c.redo = [];
+  s.list = list; s.set = new Set(list); s.bb = unionBB(list); s.dx = s.dy = 0; s.k = 1;
+  posSel(c); redrawPage(c, c.pages[s.page]); markDirty(c, s.page);
+}
+function selCopy(c, cut) {
+  const s = c.sel; if (!s) return;
+  const [x0, y0, x1, y1] = s.bb;
+  S.clip = { w: x1 - x0, h: y1 - y0, list: s.list.map(st => ({ t: st.t, c: st.c, w: st.w, pts: st.pts.map((v, i) => i % 2 ? v - y0 : v - x0), pr: st.pr.slice() })) };
+  if (cut) { selDelete(c, true); toast('잘라냈어요 · 붙일 곳을 손가락으로 꾹 누르세요', 3500); }
+  else toast('복사했어요 · 붙일 곳을 손가락으로 꾹 누르세요', 3500);
+}
+function selDelete(c, quiet) {
+  const s = c.sel; if (!s) return;
+  const arr = c.strokes.get(s.page) || [], before = arr.slice();
+  c.strokes.set(s.page, arr.filter(st => !s.set.has(st)));
+  c.undo.push({ type: 'snap', page: s.page, before, after: c.strokes.get(s.page).slice() }); c.redo = [];
+  const page = s.page; clearSel(c); markDirty(c, page);
+  if (!quiet) toast('선택한 필기를 지웠어요');
+}
+function pasteAt(c, i, x, y) {
+  const clip = S.clip, pg = c.pages[i]; if (!clip || !pg) return;
+  const ox = clamp(x - clip.w / 2, 0, Math.max(0, pg.w - clip.w)), oy = clamp(y - clip.h / 2, 0, Math.max(0, pg.h - clip.h));
+  const list = clip.list.map(st => ({ t: st.t, c: st.c, w: st.w, pts: st.pts.map((v, j) => j % 2 ? v + oy : v + ox), pr: st.pr.slice() }));
+  const arr = c.strokes.get(i) || [], before = arr.slice();
+  const next = arr.concat(list); c.strokes.set(i, next);
+  c.undo.push({ type: 'snap', page: i, before, after: next.slice() }); c.redo = [];
+  markDirty(c, i); redrawPage(c, pg);
+  setSel(c, i, list);
+}
+
 /* ---------- long-press page menu ---------- */
 let lp = null, lpFired = false, ctxAt = 0;
 function cancelLp() { if (lp) { clearTimeout(lp.t); lp = null; } }
@@ -1708,6 +1887,10 @@ function showCtx(i, x, y) {
     b.innerHTML = `<svg class="i"><use href="#${icon}"/></svg><span></span>`; b.lastChild.textContent = label;
     b.addEventListener('click', () => fn(b)); box.append(b); return b;
   };
+  if (S.clip) {
+    const pp = toPage(c.pages[i], { clientX: x, clientY: y });
+    item('i-paste', '여기에 붙여넣기', () => { hideCtx(); pasteAt(c, i, pp.x, pp.y); });
+  }
   if (c.meta.kind === 'note') {
     item('i-plus', '뒤에 페이지 추가', () => { hideCtx(); openPageSheet(i); });
     if (((c.meta.tpl || [])[i] || {}).t === 'dated') item('i-cal', '날짜 바꾸기', () => { hideCtx(); openDateSheet(i); });
