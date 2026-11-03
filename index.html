@@ -194,9 +194,36 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .ctx button:disabled{opacity:.45}
 .addpage{flex:none;height:72px;max-width:100%;border:1.5px dashed var(--line);border-radius:6px;background:transparent;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:8px;font-weight:500}
 @media (max-width:1180px){.btn .lbl-long{display:none}}
-@media (max-width:920px){
-  .tb-l{flex:1 1 200px}
-  .tb-c{order:3;width:100%;justify-content:space-between}
+/* one-line toolbar: shrink in steps instead of wrapping */
+.tb{flex-wrap:nowrap;gap:6px}
+.tb-l{flex:0 1 auto}
+.tb-c{flex:1 1 auto;min-width:0;flex-wrap:nowrap;justify-content:center;overflow-x:auto;scrollbar-width:none}
+.tb-c::-webkit-scrollbar{display:none}
+.tb-c>*{flex:none}
+.tb-r{flex:none;gap:4px;margin-left:0}
+.tb-title #doc-name{max-width:200px}
+.ls{display:none}
+@media (max-width:1180px){
+  .tb .tool{height:36px;min-width:34px;padding:0 5px}
+  .tb .sw{width:26px;height:36px}
+  .tb .sw span{width:19px;height:19px}
+  .tb .wd{width:24px;height:36px}
+  .tb .sep{margin:0 2px}
+  .tb .emode{height:30px;padding:0 8px}
+  .tb #export{padding:0 11px}
+  .tb #export>span{display:none}
+  .tb-title #doc-name{max-width:110px}
+  .lf{display:none}.ls{display:inline}
+}
+@media (max-width:1000px){
+  .tb-back .bl,#doc-name{display:none}
+  .tb-back{padding:0 4px}
+  #zout,#zin{display:none}
+  .zlabel{min-width:44px}
+}
+@media (max-width:800px){
+  .tb .sep,.zoom{display:none}
+  .tb .tool{min-width:32px;padding:0 4px}
 }
 @media (max-width:640px){.brand h1{font-size:32px}}
 @media (prefers-reduced-motion:reduce){.job .bar i{animation:none;width:100%}}
@@ -260,7 +287,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v11</span>
+        <span class="usage"><span id="usage"></span> · v12</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -272,7 +299,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
   <section id="ed" hidden aria-label="필기">
     <header class="tb">
       <div class="tb-l">
-        <button class="tb-back" id="back"><svg class="i"><use href="#i-back"/></svg>서재</button>
+        <button class="tb-back" id="back" aria-label="서재로"><svg class="i"><use href="#i-back"/></svg><span class="bl">서재</span></button>
         <div class="tb-title">
           <span id="doc-name"></span>
           <button class="status" id="status" data-s="loading">불러오는 중</button>
@@ -1503,14 +1530,14 @@ function renderTools() {
   sw.hidden = wd.hidden = false;
   if (ui.tool === 'lasso') {
     hideCursor();
-    const hint = document.createElement('span'); hint.className = 'lasso-hint'; hint.textContent = '옮길 필기를 동그랗게 둘러 그리세요';
+    const hint = document.createElement('span'); hint.className = 'lasso-hint'; hint.innerHTML = '<span class="lf">옮길 필기를 동그랗게 둘러 그리세요</span><span class="ls">둘러 그려서 선택</span>';
     sw.appendChild(hint); wd.hidden = true;
     return;
   }
   if (ui.tool === 'eraser') {
     hideCursor();
     [['part', '부분 지우기'], ['stroke', '획 전체']].forEach(([m, nm]) => {
-      const b = document.createElement('button'); b.className = 'emode'; b.textContent = nm;
+      const b = document.createElement('button'); b.className = 'emode'; b.innerHTML = `<span class="lf">${nm}</span><span class="ls">${m === 'part' ? '부분' : '획'}</span>`; b.title = nm;
       b.setAttribute('aria-pressed', String(ui.erMode === m));
       b.onclick = () => { ui.erMode = m; saveUi(); renderTools(); };
       sw.appendChild(b);
