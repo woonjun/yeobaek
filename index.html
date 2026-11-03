@@ -129,6 +129,8 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .ecur{position:fixed;left:0;top:0;border:1.5px solid var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:50%;pointer-events:none;z-index:7;transform:translate(-50%,-50%)}
 .zlabel{min-width:56px;height:40px;border:0;background:none;font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;color:var(--muted);border-radius:10px}
 #viewer{flex:1;overflow:auto;background:var(--desk);touch-action:pan-x pan-y;overscroll-behavior:contain;position:relative;-webkit-overflow-scrolling:touch}
+#viewer,#lib{scrollbar-width:none;-ms-overflow-style:none}
+#viewer::-webkit-scrollbar,#lib::-webkit-scrollbar{display:none;width:0;height:0}
 #viewer.hdir #pages{flex-direction:row;align-items:center;min-height:100%;gap:24px;padding-top:16px;padding-bottom:calc(52px + env(safe-area-inset-bottom,0px))}
 #viewer.hdir.snap{scroll-snap-type:x mandatory}
 #viewer.hdir.snap .page,#viewer.hdir.snap .addpage{scroll-snap-align:center;scroll-snap-stop:always}
@@ -256,7 +258,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v9</span>
+        <span class="usage"><span id="usage"></span> · v10</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -992,6 +994,10 @@ function drawStroke(ctx, st) {
     const w = st.t === 'h' ? st.w : penWidth(st.w, st.pr[0]);
     ctx.beginPath(); ctx.arc(p[0], p[1], w / 2, 0, Math.PI * 2); ctx.fill(); return;
   }
+  if (n === 2) {
+    ctx.lineWidth = st.t === 'h' ? st.w : penWidth(st.w, (st.pr[0] + st.pr[1]) / 2);
+    ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[2], p[3]); ctx.stroke(); return;
+  }
   if (st.t === 'h') {
     ctx.lineWidth = st.w; ctx.beginPath(); ctx.moveTo(p[0], p[1]);
     for (let j = 1; j < n; j++) { const mx = (p[2 * j - 2] + p[2 * j]) / 2, my = (p[2 * j - 1] + p[2 * j + 1]) / 2; ctx.quadraticCurveTo(p[2 * j - 2], p[2 * j - 1], mx, my); }
@@ -1081,7 +1087,8 @@ pagesEl.addEventListener('pointerdown', e => {
   }
   const t = ui.tool === 'hl' ? 'h' : 'p';
   const st = { t, c: t === 'h' ? HL_COLORS[ui.hlColor] : PEN_COLORS[ui.penColor], w: t === 'h' ? HL_W[ui.hlW] : PEN_W[ui.penW], pts: [pt.x, pt.y], pr: [pq(e)] };
-  c.active = { pg, id: e.pointerId, type: e.pointerType, st, lx: pt.x, ly: pt.y };
+  c.active = { pg, id: e.pointerId, type: e.pointerType, st, lx: pt.x, ly: pt.y, hold: { x: pt.x, y: pt.y }, holdT: 0 };
+  armHold(c, c.active);
 });
 
 pagesEl.addEventListener('pointermove', e => {
@@ -1102,6 +1109,8 @@ pagesEl.addEventListener('pointermove', e => {
       continue;
     }
     if (a.erase) { eraseAt(c, a.pg, pt); continue; }
+    if (a.straight) { setStraightEnd(c, a, pt); continue; }
+    if (Math.hypot(pt.x - a.hold.x, pt.y - a.hold.y) > 3 / c.scale) { a.hold = { x: pt.x, y: pt.y }; armHold(c, a); }
     const p = a.st.pts, lx = p[p.length - 2], ly = p[p.length - 1];
     const min = 0.7 / c.scale;
     if (Math.abs(pt.x - lx) < min && Math.abs(pt.y - ly) < min) continue;
@@ -1120,9 +1129,11 @@ function endPointer(e, cancel) {
     if (a.erase.changed) { c.undo.push({ type: 'snap', page: a.erase.page, before: a.erase.before, after: (c.strokes.get(a.erase.page) || []).slice() }); c.redo = []; markDirty(c, a.erase.page); }
     return;
   }
+  clearTimeout(a.holdT);
   if (cancel && a.type !== 'pen') { redrawPage(c, a.pg); return; }
-  liveEnd(a);
+  if (a.straight) { if (a.raf) cancelAnimationFrame(a.raf); a.raf = 0; } else liveEnd(a);
   const arr = c.strokes.get(a.pg.i) || []; arr.push(a.st); c.strokes.set(a.pg.i, arr);
+  if (a.straight) redrawPage(c, a.pg);
   c.undo.push({ type: 'add', page: a.pg.i, st: a.st }); c.redo = [];
   markDirty(c, a.pg.i);
   if (a.pg.renderedScale !== c.scale || !a.pg.visible) pump();
@@ -1133,9 +1144,42 @@ pagesEl.addEventListener('pointercancel', e => endPointer(e, true));
 function abortStroke(c) {
   const a = c.active; if (!a) return;
   c.active = null;
+  clearTimeout(a.holdT);
   if (a.lasso) { a.ls.svg.remove(); return; }
   if (a.erase) { c.strokes.set(a.erase.page, a.erase.before.slice()); hideCursor(); }
   redrawPage(c, a.pg);
+}
+
+/* ---------- hold to straighten ---------- */
+const HOLD_MS = 550;
+function armHold(c, a) {
+  clearTimeout(a.holdT);
+  a.holdT = setTimeout(() => { if (c.active === a && !a.straight) straighten(c, a); }, HOLD_MS);
+}
+function pathLen(p) { let L = 0; for (let i = 2; i < p.length; i += 2) L += Math.hypot(p[i] - p[i - 2], p[i + 1] - p[i - 1]); return L; }
+function straighten(c, a) {
+  const st = a.st, p = st.pts;
+  if (p.length < 4 || pathLen(p) < 12) return;
+  const avg = Math.round(st.pr.reduce((s, v) => s + v, 0) / st.pr.length);
+  a.straight = { x0: p[0], y0: p[1] };
+  st.pts = [p[0], p[1], p[p.length - 2], p[p.length - 1]]; st.pr = [avg, avg];
+  setStraightEnd(c, a, { x: st.pts[2], y: st.pts[3] });
+}
+function setStraightEnd(c, a, pt) {
+  const { x0, y0 } = a.straight;
+  let x = pt.x, y = pt.y;
+  const ang = Math.abs(Math.atan2(y - y0, x - x0) * 180 / Math.PI);
+  if (ang < 4 || ang > 176) y = y0;
+  else if (Math.abs(ang - 90) < 4) x = x0;
+  a.st.pts[2] = x; a.st.pts[3] = y;
+  if (a.raf) return;
+  a.raf = requestAnimationFrame(() => {
+    a.raf = 0;
+    if (c.active !== a) return;
+    redrawPage(c, a.pg);
+    const cv = a.st.t === 'h' ? a.pg.hl : a.pg.ink, ctx = cv.getContext('2d');
+    setT(ctx, a.pg, cv); drawStroke(ctx, a.st);
+  });
 }
 
 function bbox(st) {
