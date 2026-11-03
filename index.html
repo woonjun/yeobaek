@@ -170,6 +170,13 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .datebtn{position:absolute;z-index:2;border:0;background:transparent;border-radius:6px;padding:0;display:flex;align-items:center;justify-content:flex-end;color:#8A93A3}
 .datebtn svg{width:16px;height:16px;opacity:.6;margin-right:2px}
 .datebtn:hover,.datebtn:focus-visible,.datebtn:active{background:rgba(39,71,201,.08)}
+.ctx-layer{position:fixed;inset:0;z-index:30}
+.ctx{position:fixed;left:0;top:0;min-width:220px;max-width:calc(100vw - 16px);background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:6px;display:flex;flex-direction:column}
+.ctx .hd{font:500 12px var(--f-mono);color:var(--muted);padding:6px 10px 4px;font-variant-numeric:tabular-nums}
+.ctx button{display:flex;align-items:center;gap:10px;height:44px;padding:0 12px;border:0;background:none;border-radius:10px;text-align:left;font-weight:500;white-space:nowrap}
+.ctx button:hover,.ctx button:active{background:var(--surface-2)}
+.ctx button.danger{color:var(--danger)}
+.ctx button:disabled{opacity:.45}
 .addpage{flex:none;height:72px;max-width:100%;border:1.5px dashed var(--line);border-radius:6px;background:transparent;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:8px;font-weight:500}
 @media (max-width:1180px){.btn .lbl-long{display:none}}
 @media (max-width:920px){
@@ -236,7 +243,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v7</span>
+        <span class="usage"><span id="usage"></span> · v8</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -327,6 +334,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
     <div class="row spread"><span class="row"><button class="btn danger-ghost" id="ps-del"></button><button class="btn" id="ps-date" hidden><svg class="i"><use href="#i-cal"/></svg>날짜 바꾸기</button></span><button class="btn" id="ps-close">닫기</button></div>
   </div>
 </div>
+<div class="ctx-layer" id="ctx-layer" hidden><div class="ctx" id="ctx" role="menu" aria-label="페이지 메뉴"></div></div>
 <div id="toast" role="status" hidden></div>
 <input type="file" id="f-pdf" class="vh" accept="application/pdf,.pdf" multiple>
 <input type="file" id="f-relink" class="vh" accept="application/pdf,.pdf">
@@ -1332,6 +1340,17 @@ viewer.addEventListener('touchstart', e => {
   touchCount = directTouches(e).length;
   const d0 = directTouches(e);
   tap = (d0.length === 1 && e.touches.length === 1 && !ui.finger && performance.now() - lastPen > 500 && !(e.target.closest && e.target.closest('button'))) ? { x: d0[0].clientX, y: d0[0].clientY, t: performance.now() } : null;
+  cancelLp();
+  const lpEl = d0.length === 1 && e.touches.length === 1 && performance.now() - lastPen > 500 && e.target.closest && !e.target.closest('button') && e.target.closest('.page');
+  if (lpEl) {
+    lp = { x: d0[0].clientX, y: d0[0].clientY, i: +lpEl.dataset.i };
+    lp.t = setTimeout(() => {
+      const l = lp; lp = null; tap = null; lpFired = true;
+      const cc = cur; if (!cc || cc.pinch) return;
+      if (cc.active && cc.active.type === 'touch') abortStroke(cc);
+      showCtx(l.i, l.x, l.y);
+    }, 550);
+  }
   if ([...e.changedTouches].some(t => t.touchType === 'stylus')) { e.preventDefault(); return; }
   const direct = directTouches(e);
   const penBusy = (c.active && c.active.type === 'pen') || performance.now() - lastPen < 500;
@@ -1345,6 +1364,7 @@ viewer.addEventListener('touchstart', e => {
 viewer.addEventListener('touchmove', e => {
   const c = cur; if (!c) return;
   if (tap) { const t = e.touches[0]; if (!t || e.touches.length > 1 || Math.hypot(t.clientX - tap.x, t.clientY - tap.y) > 10) tap = null; }
+  if (lp) { const t = e.touches[0]; if (!t || e.touches.length > 1 || Math.hypot(t.clientX - lp.x, t.clientY - lp.y) > 10) cancelLp(); }
   if (c.pinch) { const d = directTouches(e); if (d.length >= 2) movePinch(c, d); if (e.cancelable) e.preventDefault(); return; }
   const stylus = [...e.touches].some(t => t.touchType === 'stylus');
   const penBusy = (c.active && c.active.type === 'pen') || performance.now() - lastPen < 500;
@@ -1356,6 +1376,8 @@ function touchEnd(e) {
   if (c.pinch && touchCount < 2) endPinch(c);
   if (tap && e.type === 'touchend' && e.touches.length === 0 && performance.now() - tap.t < 300 && !c.pinch) setFocus(!ui.focus);
   if (e.touches.length === 0) tap = null;
+  cancelLp();
+  if (lpFired && e.touches.length === 0) { lpFired = false; if (e.cancelable) e.preventDefault(); }
 }
 viewer.addEventListener('touchend', touchEnd);
 viewer.addEventListener('touchcancel', touchEnd);
@@ -1606,49 +1628,110 @@ $('#new-go').addEventListener('click', async () => {
 $('#new-btn').addEventListener('click', openNewSheet);
 $('#empty-new').addEventListener('click', openNewSheet);
 
-async function restructure(c, order, focusIdx) {
+async function restructure(c, order, focusIdx, extra = {}) {
   if (c.active) abortStroke(c);
-  if (!(await flush(c))) { toast('저장하지 못한 필기가 있어서 페이지를 바꾸지 않았어요.', 4000); return; }
+  if (!(await flush(c))) { toast('저장하지 못한 필기가 있어서 페이지를 바꾸지 않았어요.', 4000); return false; }
   const old = c.strokes, ns = new Map();
   order.forEach((o, i) => { if (o.src != null && old.has(o.src)) ns.set(i, old.get(o.src)); });
-  const meta = { ...c.meta, tpl: order.map(o => o.tpl), sizes: order.map(o => o.size), pages: order.length, updatedAt: Date.now(), lastPage: focusIdx };
+  const meta = { ...c.meta, sizes: order.map(o => o.size), pages: order.length, updatedAt: Date.now(), lastPage: focusIdx };
+  if (c.meta.kind === 'note') meta.tpl = order.map(o => o.tpl);
+  if (extra.file) meta.size = extra.file.size;
   try {
     const prev = await idb.pagesOf(c.id);
-    await wr(['pages', 'docs'], tx => {
+    await wr(extra.file ? ['pages', 'docs', 'files'] : ['pages', 'docs'], tx => {
       const ps = tx.objectStore('pages');
       prev.forEach(r => ps.delete(r.key));
       for (const [i, arr] of ns) if (arr.length) ps.put({ key: `${c.id}:${i}`, docId: c.id, page: i, s: arr.map(encStroke) });
+      if (extra.file) tx.objectStore('files').put(extra.file, c.id);
       tx.objectStore('docs').put(meta);
     });
-  } catch (e) { toast(storeErr(e), 4000); return; }
-  if (cur !== c) return;
+  } catch (e) { toast(storeErr(e), 4000); return false; }
+  S.docs.set(c.id, { ...meta });
+  if (cur !== c) return true;
   c.meta = meta; c.sizes = meta.sizes; c.n = meta.pages; c.strokes = ns;
   c.undo = []; c.redo = []; updateUndo();
-  S.docs.set(c.id, { ...meta });
+  if (extra.file) { try { c.pdf && c.pdf.destroy(); } catch {} c.pdf = null; c.pdfProm = null; c.failed = false; }
   c.io.disconnect();
   for (const pg of c.pages) unrender(c, pg);
   c.pages = []; c.addBtn = null;
   buildPages(c); layout();
   c.pages.forEach(pg => c.io.observe(pg.el));
   requestAnimationFrame(() => { scrollToPage(focusIdx); onScroll(); });
+  return true;
 }
 function pageOrder(c) { return c.pages.map((pg, i) => ({ src: i, tpl: (c.meta.tpl && c.meta.tpl[i]) || { t: 'blank', d: c.meta.createdAt }, size: c.sizes[i] })); }
 async function addPage(c, after, t) {
   const order = pageOrder(c);
   order.splice(after + 1, 0, { src: null, tpl: { t, d: Date.now() }, size: c.sizes[after].slice() });
-  await restructure(c, order, after + 1);
-  toast(`${after + 2}쪽을 추가했어요`);
+  if (await restructure(c, order, after + 1)) toast(`${after + 2}쪽을 추가했어요`);
 }
 async function deletePage(c, idx) {
   if (c.n <= 1) return;
+  if (c.meta.kind !== 'note') return deletePdfPage(c, idx);
   const order = pageOrder(c); order.splice(idx, 1);
-  await restructure(c, order, Math.min(idx, order.length - 1));
-  toast(`${idx + 1}쪽을 삭제했어요`);
+  if (await restructure(c, order, Math.min(idx, order.length - 1))) toast(`${idx + 1}쪽을 삭제했어요`);
 }
+async function deletePdfPage(c, idx) {
+  toast('페이지를 지우는 중이에요', 8000);
+  try {
+    if (c.active) abortStroke(c);
+    const L = await loadPdfLib();
+    const blob = await idb.get('files', c.id);
+    if (!blob) throw new UErr('원본 PDF가 없어서 페이지를 지울 수 없어요.');
+    const doc = await L.PDFDocument.load(await blob.arrayBuffer(), { ignoreEncryption: true, updateMetadata: false });
+    if (idx >= doc.getPageCount()) throw new UErr('페이지를 찾지 못했어요.');
+    doc.removePage(idx);
+    const file = new Blob([await doc.save({ useObjectStreams: true })], { type: 'application/pdf' });
+    const order = pageOrder(c); order.splice(idx, 1);
+    if (!(await restructure(c, order, Math.min(idx, order.length - 1), { file }))) return;
+    toast(`${idx + 1}쪽을 삭제했어요`);
+    if (idx === 0 && cur === c) {
+      try {
+        const t = await renderThumb(await getPdfPage(c, 0));
+        await idb.put('thumbs', t, c.id);
+        if (S.thumbUrls.has(c.id)) { URL.revokeObjectURL(S.thumbUrls.get(c.id)); S.thumbUrls.delete(c.id); }
+      } catch {}
+    }
+  } catch (e) { toast(e instanceof UErr ? e.message : '페이지를 지우지 못했어요. 다시 시도해 주세요.', 4000); }
+}
+
+/* ---------- long-press page menu ---------- */
+let lp = null, lpFired = false, ctxAt = 0;
+function cancelLp() { if (lp) { clearTimeout(lp.t); lp = null; } }
+function hideCtx() { $('#ctx-layer').hidden = true; }
+function showCtx(i, x, y) {
+  const c = cur; if (!c || !c.pages[i]) return;
+  const box = $('#ctx'); box.replaceChildren();
+  const hd = document.createElement('div'); hd.className = 'hd'; hd.textContent = `${i + 1}쪽 / ${c.n}쪽`; box.append(hd);
+  const item = (icon, label, fn, cls) => {
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'menuitem'); if (cls) b.className = cls;
+    b.innerHTML = `<svg class="i"><use href="#${icon}"/></svg><span></span>`; b.lastChild.textContent = label;
+    b.addEventListener('click', () => fn(b)); box.append(b); return b;
+  };
+  if (c.meta.kind === 'note') {
+    item('i-plus', '뒤에 페이지 추가', () => { hideCtx(); openPageSheet(i); });
+    if (((c.meta.tpl || [])[i] || {}).t === 'dated') item('i-cal', '날짜 바꾸기', () => { hideCtx(); openDateSheet(i); });
+  }
+  let armed = false;
+  const del = item('i-trash', c.n <= 1 ? '페이지가 하나뿐이라 지울 수 없어요' : `${i + 1}쪽 삭제`, b => {
+    if (!armed) { armed = true; b.lastChild.textContent = c.meta.kind === 'note' ? '한 번 더 누르면 삭제돼요' : 'PDF에서도 빠져요 · 한 번 더 누르기'; return; }
+    hideCtx(); deletePage(c, i);
+  }, 'danger');
+  del.disabled = c.n <= 1;
+  $('#ctx-layer').hidden = false; ctxAt = performance.now();
+  const r = box.getBoundingClientRect();
+  box.style.left = clamp(x - r.width / 2, 8, innerWidth - r.width - 8) + 'px';
+  box.style.top = (y + 16 + r.height > innerHeight - 8 ? Math.max(8, y - r.height - 16) : y + 16) + 'px';
+}
+$('#ctx-layer').addEventListener('click', e => { if (e.target === e.currentTarget && performance.now() - ctxAt > 450) hideCtx(); });
+pagesEl.addEventListener('contextmenu', e => {
+  const el = e.target.closest && e.target.closest('.page'); if (!el || !cur) return;
+  e.preventDefault(); cancelLp(); showCtx(+el.dataset.i, e.clientX, e.clientY);
+});
 let psIdx = 0, delArmed = false;
-function openPageSheet() {
+function openPageSheet(idx) {
   const c = cur; if (!c || c.meta.kind !== 'note') return;
-  psIdx = c.curPage;
+  psIdx = Number.isInteger(idx) ? idx : c.curPage;
   $('#ps-addlbl').textContent = `${psIdx + 1}쪽 뒤에 새 페이지 추가`;
   const sz = c.sizes[psIdx], or = sz[0] > sz[1] ? 'l' : 'p';
   renderTplButtons($('#ps-tpls'), null, or, t => { $('#page-sheet').hidden = true; addPage(c, psIdx, t); });
