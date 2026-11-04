@@ -74,6 +74,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .thumb .noimg{width:72%;aspect-ratio:1/1.414;background:var(--paper);box-shadow:var(--shadow);display:grid;place-items:center;font:500 12px var(--f-mono);color:#8A919B}
 .card h3{margin:0;font-size:14px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all}
 .card .sub{margin:2px 0 0;font:500 12px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.card-ren{position:absolute;top:8px;right:48px;width:34px;height:34px;border-radius:10px;border:0;background:var(--surface);color:var(--muted);display:grid;place-items:center;box-shadow:var(--shadow);opacity:.92}
 .card-del{position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:10px;border:0;background:var(--surface);color:var(--muted);display:grid;place-items:center;box-shadow:var(--shadow);opacity:.92}
 .confirm{position:absolute;inset:0 0 auto 0;aspect-ratio:3/4;max-width:100%;border-radius:10px;background:var(--surface);border:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;gap:12px;padding:16px;text-align:center;font-size:14px}
 .confirm .row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
@@ -101,7 +102,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .tb-l{display:flex;align-items:center;gap:6px;min-width:0;flex:0 1 260px}
 .tb-back{display:inline-flex;align-items:center;gap:2px;height:40px;padding:0 10px 0 4px;border:0;background:none;border-radius:10px;font-weight:500}
 .tb-title{display:flex;flex-direction:column;min-width:0;line-height:1.25}
-.tb-title #doc-name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb-title #doc-name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:0;background:none;padding:0;text-align:left;color:var(--fg);display:block}
 .status{align-self:flex-start;border:0;background:none;padding:0;font:500 11px var(--f-mono);color:var(--muted);letter-spacing:.02em}
 .status[data-s="saved"]{color:var(--ok)}
 .status[data-s="error"],.status[data-s="loadfail"]{color:var(--danger);text-decoration:underline}
@@ -249,6 +250,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
   <symbol id="i-dir-h" viewBox="0 0 24 24"><rect x="2.5" y="6" width="8" height="12" rx="1.5"/><rect x="13.5" y="6" width="8" height="12" rx="1.5"/><path d="M9 21.5h6M10.5 20L9 21.5l1.5 1.5M13.5 20l1.5 1.5-1.5 1.5"/></symbol>
   <symbol id="i-lasso" viewBox="0 0 24 24"><path d="M12 4c4.7 0 8 2.3 8 5.3S16.7 15 12 15c-1.4 0-2.7-.2-3.8-.5" stroke-dasharray="2.4 2.4"/><path d="M8.2 14.5C5.6 13.6 4 11.6 4 9.3 4 6.3 7.3 4 12 4"/><path d="M8.2 14.5c-.9 1.5-.3 3.3 1.3 3.8 1.5.5 2.4 1.7 1.8 3.2"/></symbol>
   <symbol id="i-paste" viewBox="0 0 24 24"><rect x="5" y="4.5" width="14" height="16.5" rx="2"/><path d="M9 4.5V3h6v1.5"/><path d="M9 11h6M9 15h4"/></symbol>
+  <symbol id="i-rename" viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 20H20"/></symbol>
   <symbol id="i-hide" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
   <symbol id="i-show" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l.9 12.5a1.5 1.5 0 0 0 1.5 1.5h6.2a1.5 1.5 0 0 0 1.5-1.5L17.5 7"/></symbol>
@@ -287,7 +289,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v12</span>
+        <span class="usage"><span id="usage"></span> · v13</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -301,7 +303,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
       <div class="tb-l">
         <button class="tb-back" id="back" aria-label="서재로"><svg class="i"><use href="#i-back"/></svg><span class="bl">서재</span></button>
         <div class="tb-title">
-          <span id="doc-name"></span>
+          <button type="button" id="doc-name" title="이름 바꾸기"></button>
           <button class="status" id="status" data-s="loading">불러오는 중</button>
         </div>
       </div>
@@ -364,6 +366,13 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
     <div class="fld"><span>방향 · A4</span><div class="segs" id="new-or"><button class="emode" type="button" data-or="p">세로</button><button class="emode" type="button" data-or="l">가로</button></div></div>
     <div class="row"><button class="btn" id="new-cancel">닫기</button><button class="btn primary" id="new-go">만들기</button></div>
   </div>
+</div>
+<div class="sheet" id="name-sheet" hidden>
+  <form class="sheet-card" id="name-form" role="dialog" aria-modal="true" aria-labelledby="nm-title">
+    <b id="nm-title">이름 바꾸기</b>
+    <label class="fld" for="nm-input"><span>이름</span><input id="nm-input" type="text" maxlength="80" autocomplete="off" enterkeyhint="done"></label>
+    <div class="row"><button class="btn" type="button" id="nm-cancel">닫기</button><button class="btn primary" type="submit" id="nm-save">저장</button></div>
+  </form>
 </div>
 <div class="sheet" id="date-sheet" hidden>
   <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="ds-title">
@@ -580,7 +589,10 @@ function cardFor(d) {
     yes.onclick = async () => { yes.disabled = no.disabled = true; yes.textContent = '삭제 중'; await deleteDoc(d.id); cf.remove(); };
     el.appendChild(cf);
   });
-  el.append(open, del);
+  const ren = document.createElement('button'); ren.className = 'card-ren'; ren.setAttribute('aria-label', d.name + ' 이름 바꾸기'); ren.title = '이름 바꾸기';
+  ren.innerHTML = '<svg class="i"><use href="#i-rename"/></svg>';
+  ren.addEventListener('click', e => { e.stopPropagation(); openRename(d.id); });
+  el.append(open, ren, del);
   return el;
 }
 
@@ -2047,6 +2059,34 @@ $('#ps-del').addEventListener('click', () => {
   $('#page-sheet').hidden = true;
   deletePage(c, psIdx);
 });
+
+/* ---------- rename ---------- */
+let renameId = null;
+function openRename(id) {
+  const d = S.docs.get(id); if (!d) return;
+  renameId = id;
+  $('#nm-input').value = d.name;
+  $('#name-sheet').hidden = false;
+  setTimeout(() => { try { $('#nm-input').focus(); $('#nm-input').select(); } catch {} }, 50);
+}
+$('#nm-cancel').addEventListener('click', () => { $('#name-sheet').hidden = true; });
+$('#name-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const id = renameId, d = S.docs.get(id); if (!d) return;
+  const name = ($('#nm-input').value || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  if (!name) { toast('이름을 입력해 주세요.'); return; }
+  $('#nm-input').blur();
+  try {
+    const meta = { ...(cur && cur.id === id ? cur.meta : d), name };
+    await idb.put('docs', meta);
+    S.docs.set(id, { ...meta });
+    if (cur && cur.id === id) { cur.meta = meta; $('#doc-name').textContent = name; }
+    $('#name-sheet').hidden = true;
+    renderLib();
+    toast('이름을 바꿨어요');
+  } catch (err) { toast(storeErr(err), 4000); }
+});
+$('#doc-name').addEventListener('click', () => { if (cur) openRename(cur.id); });
 
 /* ---------- library wiring ---------- */
 $('#import-btn').addEventListener('click', () => $('#f-pdf').click());
