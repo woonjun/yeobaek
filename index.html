@@ -289,7 +289,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v13</span>
+        <span class="usage"><span id="usage"></span> · v14</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -836,7 +836,7 @@ async function openDoc(id) {
     for (const e of entries) {
       const pg = c.pages[+e.target.dataset.i];
       pg.visible = e.isIntersecting;
-      if (!pg.visible) unrender(c, pg);
+      if (!pg.visible && !c.pinch) unrender(c, pg);
     }
     pump();
   }, { root: viewer, rootMargin: '100% 100%' });
@@ -888,7 +888,9 @@ function layout() {
     const maxH = c.pages.reduce((m, p) => Math.max(m, p.h), 1);
     c.base = Math.max(0.1, Math.min((viewer.clientWidth - 48) / maxW, (viewer.clientHeight - 76) / maxH));
   } else c.base = Math.min(avail, 1000) / maxW;
+  const prevScale = c.scale;
   c.scale = c.base * c.zoom;
+  if (c.scale !== prevScale && c.task) { try { c.task.cancel(); } catch {} }
   for (const pg of c.pages) { pg.el.style.width = (pg.w * c.scale) + 'px'; pg.el.style.height = (pg.h * c.scale) + 'px'; }
   if (c.addBtn && c.pages.length) {
     const lp = c.pages[c.pages.length - 1];
@@ -904,17 +906,31 @@ function layout() {
   pump();
 }
 
-function setZoom(z, fx, fy) {
+/* Zoom so that the point of the page under (fx, fy) ends up under (tx, ty). */
+function anchorAt(c, x, y) {
+  let best = null, bd = Infinity;
+  for (const pg of c.pages) {
+    if (!pg.visible) continue;
+    const r = pg.el.getBoundingClientRect();
+    const d = Math.max(r.left - x, 0, x - r.right) + Math.max(r.top - y, 0, y - r.bottom);
+    if (d < bd) { bd = d; best = { pg, u: (x - r.left) / r.width, v: (y - r.top) / r.height }; if (!d) break; }
+  }
+  return best;
+}
+function setZoom(z, fx, fy, tx, ty) {
   const c = cur; if (!c) return;
   const r = viewer.getBoundingClientRect();
   if (fx == null) { fx = r.left + viewer.clientWidth / 2; fy = r.top + viewer.clientHeight / 2; }
-  const old = c.scale;
-  const cx = viewer.scrollLeft + (fx - r.left), cy = viewer.scrollTop + (fy - r.top);
+  if (tx == null) { tx = fx; ty = fy; }
+  const a = anchorAt(c, fx, fy);
   c.zoom = clamp(z, 0.5, 4);
+  c.zoomAt = performance.now();
   layout();
-  const k = c.scale / old;
-  viewer.scrollLeft = (cx - 16) * k + 16 - (fx - r.left);
-  viewer.scrollTop = (cy - 24) * k + 24 - (fy - r.top);
+  if (a) {
+    const nr = a.pg.el.getBoundingClientRect();
+    viewer.scrollLeft += nr.left + a.u * nr.width - tx;
+    viewer.scrollTop += nr.top + a.v * nr.height - ty;
+  }
 }
 
 function scrollToPage(i) {
@@ -958,13 +974,16 @@ async function getPdfPage(c, i) {
   return c.pdf.getPage(i + 1);
 }
 
-let pumping = false;
+let pumping = false, pumpT = 0;
 async function pump() {
   if (pumping) return;
   pumping = true;
   try {
     while (cur) {
       const c = cur;
+      if (c.pinch) break;
+      const wait = (c.zoomAt || 0) + 220 - performance.now();
+      if (wait > 0) { clearTimeout(pumpT); pumpT = setTimeout(pump, wait); break; }
       const H = ui.dir === 'h';
       const center = H ? viewer.scrollLeft + viewer.clientWidth / 2 : viewer.scrollTop + viewer.clientHeight / 2;
       let best = null, bd = Infinity;
@@ -1000,10 +1019,13 @@ async function renderPage(c, pg) {
   try {
     const ctx = cv.getContext('2d', { alpha: false });
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
-    if (page) await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    if (page) {
+      const task = page.render({ canvasContext: ctx, viewport: vp }); c.task = task;
+      try { await task.promise; } finally { if (c.task === task) c.task = null; }
+    }
     else { const k = cv.width / pg.w; ctx.setTransform(k, 0, 0, k, 0, 0); drawTpl(ctx, tplOps(c.meta.tpl && c.meta.tpl[pg.i], pg.w, pg.h)); }
   } catch { cv.width = cv.height = 0; pg.renderedScale = s; return; }
-  if (cur !== c || !pg.visible) { cv.width = cv.height = 0; return; }
+  if (cur !== c || !pg.visible || s !== c.scale) { cv.width = cv.height = 0; return; }
   if (pg.pdfC) { pg.pdfC.width = pg.pdfC.height = 0; pg.pdfC.remove(); }
   pg.pdfC = cv;
   pg.el.insertBefore(cv, pg.hl || null);
@@ -1444,6 +1466,7 @@ function startPinch(c, t) {
   const m0 = { x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 };
   c.pinch = { d0: Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) || 1, m0, m: m0, z0: c.zoom, k: 1 };
   pagesEl.style.transformOrigin = `${m0.x - r.left}px ${m0.y - r.top}px`;
+  pagesEl.style.willChange = 'transform';
 }
 function movePinch(c, t) {
   const p = c.pinch;
@@ -1455,8 +1478,8 @@ function movePinch(c, t) {
 function endPinch(c) {
   const p = c.pinch; c.pinch = null;
   pagesEl.style.transform = ''; pagesEl.style.transformOrigin = '';
-  setZoom(p.z0 * p.k, p.m0.x, p.m0.y);
-  viewer.scrollLeft -= (p.m.x - p.m0.x); viewer.scrollTop -= (p.m.y - p.m0.y);
+  pagesEl.style.willChange = '';
+  setZoom(p.z0 * p.k, p.m0.x, p.m0.y, p.m.x, p.m.y);
 }
 const directTouches = e => [...e.touches].filter(t => t.touchType !== 'stylus');
 let tap = null;
