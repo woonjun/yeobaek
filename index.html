@@ -131,6 +131,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .zlabel{min-width:56px;height:40px;border:0;background:none;font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;color:var(--muted);border-radius:10px}
 #viewer{flex:1;overflow:auto;background:var(--desk);touch-action:pan-x pan-y;overscroll-behavior:contain;position:relative;-webkit-overflow-scrolling:touch}
 #viewer,#lib{scrollbar-width:none;-ms-overflow-style:none}
+#viewer.inking{overflow:hidden}
 #viewer::-webkit-scrollbar,#lib::-webkit-scrollbar{display:none;width:0;height:0}
 #viewer.hdir #pages{flex-direction:row;align-items:center;min-height:100%;gap:24px;padding-top:16px;padding-bottom:calc(52px + env(safe-area-inset-bottom,0px))}
 #viewer.hdir.snap{scroll-snap-type:x mandatory}
@@ -289,7 +290,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v15</span>
+        <span class="usage"><span id="usage"></span> · v16</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -1140,6 +1141,7 @@ pagesEl.addEventListener('pointerdown', e => {
   if (!c.loaded) { toast(statusEl.dataset.s === 'loadfail' ? '필기를 불러오지 못했어요. 위의 "다시 시도"를 눌러 주세요.' : '필기를 불러오는 중이에요'); return; }
   ensureInk(c, pg);
   e.preventDefault();
+  if (e.pointerType === 'pen') { cancelLp(); tap = null; viewer.classList.add('inking'); }
   try { el.setPointerCapture(e.pointerId); } catch {}
   const pt = toPage(pg, e);
   if (c.sel) clearSel(c);
@@ -1189,6 +1191,7 @@ pagesEl.addEventListener('pointermove', e => {
 function endPointer(e, cancel) {
   const c = cur; if (!c || !c.active || e.pointerId !== c.active.id) return;
   const a = c.active; c.active = null;
+  viewer.classList.remove('inking');
   if (a.type === 'pen') lastPen = performance.now();
   if (a.lasso) { a.ls.svg.remove(); if (!cancel) finishLasso(c, a.pg, a.lasso); return; }
   if (a.erase) {
@@ -1226,6 +1229,7 @@ function ensureInk(c, pg) {
 function abortStroke(c) {
   const a = c.active; if (!a) return;
   c.active = null;
+  viewer.classList.remove('inking');
   clearTimeout(a.holdT);
   if (a.lasso) { a.ls.svg.remove(); return; }
   if (a.erase) { c.strokes.set(a.erase.page, a.erase.before.slice()); hideCursor(); }
@@ -1502,27 +1506,34 @@ function endPinch(c) {
 }
 const directTouches = e => [...e.touches].filter(t => t.touchType !== 'stylus');
 let tap = null;
+/* Palm rejection: a resting hand shows up as wide touches, and arrives around pencil use. */
+const touchSize = t => Math.max(t.radiusX || 0, t.radiusY || 0, t.webkitRadiusX || 0, t.webkitRadiusY || 0);
+const isPalm = t => touchSize(t) >= 24;
+const penRecent = (c, ms) => (c.active && c.active.type === 'pen') || performance.now() - lastPen < ms;
 viewer.addEventListener('touchstart', e => {
   const c = cur; if (!c) return;
   touchCount = directTouches(e).length;
   const d0 = directTouches(e);
-  tap = (d0.length === 1 && e.touches.length === 1 && !ui.finger && performance.now() - lastPen > 500 && !(e.target.closest && e.target.closest('button, .sel, .selbar'))) ? { x: d0[0].clientX, y: d0[0].clientY, t: performance.now() } : null;
+  const palm = d0.some(isPalm);
+  const quiet = !palm && !penRecent(c, 1000) && !(e.target.closest && e.target.closest('button, .sel, .selbar'));
+  tap = (quiet && d0.length === 1 && e.touches.length === 1 && !ui.finger) ? { x: d0[0].clientX, y: d0[0].clientY, t: performance.now() } : null;
   cancelLp();
-  const lpEl = d0.length === 1 && e.touches.length === 1 && performance.now() - lastPen > 500 && e.target.closest && !e.target.closest('button, .sel, .selbar') && e.target.closest('.page');
+  const lpEl = quiet && d0.length === 1 && e.touches.length === 1 && e.target.closest && e.target.closest('.page');
   if (lpEl) {
     lp = { x: d0[0].clientX, y: d0[0].clientY, i: +lpEl.dataset.i };
     lp.t = setTimeout(() => {
-      const l = lp; lp = null; tap = null; lpFired = true;
-      const cc = cur; if (!cc || cc.pinch) return;
+      const l = lp; lp = null;
+      const cc = cur; if (!cc || cc.pinch || penRecent(cc, 1000)) return;
+      tap = null; lpFired = true;
       if (cc.active && cc.active.type === 'touch') abortStroke(cc);
       showCtx(l.i, l.x, l.y);
     }, 550);
   }
   if ([...e.changedTouches].some(t => t.touchType === 'stylus')) { e.preventDefault(); return; }
   const direct = directTouches(e);
-  const penBusy = (c.active && c.active.type === 'pen') || performance.now() - lastPen < 300;
-  if (penBusy) { e.preventDefault(); return; }
+  if (penRecent(c, 300) || palm) { e.preventDefault(); return; }
   if (direct.length === 2) {
+    if (penRecent(c, 1000)) { e.preventDefault(); return; }
     if (c.active && c.active.type === 'touch') abortStroke(c);
     startPinch(c, direct); e.preventDefault(); return;
   }
