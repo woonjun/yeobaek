@@ -290,7 +290,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v16</span>
+        <span class="usage"><span id="usage"></span> · v17</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -1508,7 +1508,7 @@ const directTouches = e => [...e.touches].filter(t => t.touchType !== 'stylus');
 let tap = null;
 /* Palm rejection: a resting hand shows up as wide touches, and arrives around pencil use. */
 const touchSize = t => Math.max(t.radiusX || 0, t.radiusY || 0, t.webkitRadiusX || 0, t.webkitRadiusY || 0);
-const isPalm = t => touchSize(t) >= 24;
+const isPalm = t => false; // contact size is not reliable on iPad: fingers report as large as palms
 const penRecent = (c, ms) => (c.active && c.active.type === 'pen') || performance.now() - lastPen < ms;
 viewer.addEventListener('touchstart', e => {
   const c = cur; if (!c) return;
