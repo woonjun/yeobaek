@@ -289,7 +289,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v14</span>
+        <span class="usage"><span id="usage"></span> · v15</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -841,7 +841,8 @@ async function openDoc(id) {
     pump();
   }, { root: viewer, rootMargin: '100% 100%' });
   c.pages.forEach(pg => c.io.observe(pg.el));
-  requestAnimationFrame(() => { scrollToPage(c.curPage); onScroll(); });
+  holdSnap(c, () => scrollToPage(c.curPage));
+  requestAnimationFrame(() => { if (cur === c) { holdSnap(c, () => scrollToPage(c.curPage)); onScroll(); } });
   await loadStrokes(c);
 }
 
@@ -897,7 +898,7 @@ function layout() {
     if (ui.dir === 'h') { c.addBtn.style.width = '140px'; c.addBtn.style.height = (lp.h * c.scale) + 'px'; }
     else { c.addBtn.style.width = (lp.w * c.scale) + 'px'; c.addBtn.style.height = ''; }
   }
-  viewer.classList.toggle('snap', ui.dir === 'h' && c.zoom <= 1.001);
+  viewer.classList.toggle('snap', ui.dir === 'h' && c.zoom <= 1.001 && !c.holdSnap);
   if (ui.dir === 'h') {
     const pad = Math.max(16, (viewer.clientWidth - maxW * c.scale) / 2) + 'px';
     pagesEl.style.paddingLeft = pagesEl.style.paddingRight = pad;
@@ -1132,9 +1133,12 @@ pagesEl.addEventListener('pointerdown', e => {
   if (!shouldDraw(e)) return;
   if (e.pointerType === 'pen') lastPen = performance.now();
   const pg = c.pages[+el.dataset.i];
-  if (c.active) return;
+  if (c.active) {
+    if (c.active.id !== e.pointerId && (e.pointerType === 'pen' || c.active.type === e.pointerType)) abortStroke(c);
+    else return;
+  }
   if (!c.loaded) { toast(statusEl.dataset.s === 'loadfail' ? '필기를 불러오지 못했어요. 위의 "다시 시도"를 눌러 주세요.' : '필기를 불러오는 중이에요'); return; }
-  if (!pg.ink || !pg.ink.width) return;
+  ensureInk(c, pg);
   e.preventDefault();
   try { el.setPointerCapture(e.pointerId); } catch {}
   const pt = toPage(pg, e);
@@ -1203,6 +1207,21 @@ function endPointer(e, cancel) {
 }
 pagesEl.addEventListener('pointerup', e => endPointer(e, false));
 pagesEl.addEventListener('pointercancel', e => endPointer(e, true));
+pagesEl.addEventListener('lostpointercapture', e => endPointer(e, false));
+function ensureInk(c, pg) {
+  if (pg.ink && pg.ink.width) return;
+  const cssW = pg.w * c.scale, cssH = pg.h * c.scale;
+  let dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (cssW * cssH * dpr * dpr > 8e6) dpr = Math.sqrt(8e6 / (cssW * cssH));
+  if (!pg.hl) {
+    pg.hl = document.createElement('canvas'); pg.hl.className = 'hl';
+    pg.ink = document.createElement('canvas'); pg.ink.className = 'ink';
+    pg.el.append(pg.hl, pg.ink);
+  }
+  pg.hl.width = pg.ink.width = Math.max(1, Math.floor(cssW * dpr));
+  pg.hl.height = pg.ink.height = Math.max(1, Math.floor(cssH * dpr));
+  redrawPage(c, pg);
+}
 
 function abortStroke(c) {
   const a = c.active; if (!a) return;
@@ -1501,7 +1520,7 @@ viewer.addEventListener('touchstart', e => {
   }
   if ([...e.changedTouches].some(t => t.touchType === 'stylus')) { e.preventDefault(); return; }
   const direct = directTouches(e);
-  const penBusy = (c.active && c.active.type === 'pen') || performance.now() - lastPen < 500;
+  const penBusy = (c.active && c.active.type === 'pen') || performance.now() - lastPen < 300;
   if (penBusy) { e.preventDefault(); return; }
   if (direct.length === 2) {
     if (c.active && c.active.type === 'touch') abortStroke(c);
@@ -1515,7 +1534,7 @@ viewer.addEventListener('touchmove', e => {
   if (lp) { const t = e.touches[0]; if (!t || e.touches.length > 1 || Math.hypot(t.clientX - lp.x, t.clientY - lp.y) > 10) cancelLp(); }
   if (c.pinch) { const d = directTouches(e); if (d.length >= 2) movePinch(c, d); if (e.cancelable) e.preventDefault(); return; }
   const stylus = [...e.touches].some(t => t.touchType === 'stylus');
-  const penBusy = (c.active && c.active.type === 'pen') || performance.now() - lastPen < 500;
+  const penBusy = (c.active && c.active.type === 'pen') || performance.now() - lastPen < 300;
   if ((stylus || penBusy || (c.active && c.active.type === 'touch')) && e.cancelable) e.preventDefault();
 }, { passive: false });
 function touchEnd(e) {
@@ -1535,9 +1554,32 @@ viewer.addEventListener('wheel', e => {
   e.preventDefault();
   setZoom(cur.zoom * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
 }, { passive: false });
+/* Reposition without scroll-snap fighting us, then turn snap back on once things settle. */
+function holdSnap(c, fn) {
+  c.holdSnap = (c.holdSnap || 0) + 1;
+  viewer.classList.remove('snap');
+  try { fn(); } finally {
+    setTimeout(() => {
+      c.holdSnap--;
+      if (cur === c && !c.holdSnap) viewer.classList.toggle('snap', ui.dir === 'h' && c.zoom <= 1.001);
+    }, 120);
+  }
+}
+/* When the viewer changes size (tools hidden/shown, rotation), keep the same spot of the same page in the middle. */
 new ResizeObserver(() => {
-  if (!cur || cur.pinch) return;
-  if (ui.dir === 'h') { const p = cur.curPage; layout(); scrollToPage(p); } else setZoom(cur.zoom);
+  const c = cur; if (!c || c.pinch) return;
+  const r = viewer.getBoundingClientRect();
+  const cx = r.left + viewer.clientWidth / 2, cy = r.top + viewer.clientHeight / 2;
+  const a = anchorAt(c, cx, cy);
+  holdSnap(c, () => {
+    layout();
+    if (!a) return;
+    if (ui.dir === 'h' && c.zoom <= 1.001) { scrollToPage(a.pg.i); return; }
+    const nr = a.pg.el.getBoundingClientRect();
+    viewer.scrollLeft += nr.left + a.u * nr.width - cx;
+    viewer.scrollTop += nr.top + a.v * nr.height - cy;
+  });
+  onScroll();
 }).observe(viewer);
 function renderDir() {
   viewer.classList.toggle('hdir', ui.dir === 'h');
@@ -1813,7 +1855,7 @@ async function restructure(c, order, focusIdx, extra = {}) {
   c.pages = []; c.addBtn = null;
   buildPages(c); layout();
   c.pages.forEach(pg => c.io.observe(pg.el));
-  requestAnimationFrame(() => { scrollToPage(focusIdx); onScroll(); });
+  holdSnap(c, () => scrollToPage(focusIdx)); onScroll();
   return true;
 }
 function pageOrder(c) { return c.pages.map((pg, i) => ({ src: i, tpl: (c.meta.tpl && c.meta.tpl[i]) || { t: 'blank', d: c.meta.createdAt }, size: c.sizes[i] })); }
