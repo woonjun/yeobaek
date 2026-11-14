@@ -129,13 +129,10 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .wd[aria-pressed="true"] span.ring{border-color:var(--accent)}
 .ecur{position:fixed;left:0;top:0;border:1.5px solid var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:50%;pointer-events:none;z-index:7;transform:translate(-50%,-50%)}
 .zlabel{min-width:56px;height:40px;border:0;background:none;font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;color:var(--muted);border-radius:10px}
-#viewer{flex:1;overflow:auto;background:var(--desk);touch-action:pan-x pan-y;overscroll-behavior:contain;position:relative;-webkit-overflow-scrolling:touch}
+#viewer{flex:1;overflow:auto;background:var(--desk);touch-action:none;overscroll-behavior:contain;position:relative}
 #viewer,#lib{scrollbar-width:none;-ms-overflow-style:none}
-#viewer.inking{overflow:hidden}
 #viewer::-webkit-scrollbar,#lib::-webkit-scrollbar{display:none;width:0;height:0}
 #viewer.hdir #pages{flex-direction:row;align-items:center;min-height:100%;gap:24px;padding-top:16px;padding-bottom:calc(52px + env(safe-area-inset-bottom,0px))}
-#viewer.hdir.snap{scroll-snap-type:x mandatory}
-#viewer.hdir.snap .page,#viewer.hdir.snap .addpage{scroll-snap-align:center;scroll-snap-stop:always}
 #pages{position:relative;display:flex;flex-direction:column;align-items:center;gap:16px;padding-top:24px;padding-bottom:calc(120px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));min-width:100%;width:max-content}
 .page{position:relative;flex:none;background:var(--paper);box-shadow:var(--shadow);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .fingerdraw .page{touch-action:none}
@@ -290,7 +287,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v17</span>
+        <span class="usage"><span id="usage"></span> · v18</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -984,6 +981,7 @@ async function pump() {
     while (cur) {
       const c = cur;
       if (c.pinch) break;
+      if (c.active && c.active.type === 'pen') { clearTimeout(pumpT); pumpT = setTimeout(pump, 250); break; }
       const wait = (c.zoomAt || 0) + 220 - performance.now();
       if (wait > 0) { clearTimeout(pumpT); pumpT = setTimeout(pump, wait); break; }
       const H = ui.dir === 'h';
@@ -1135,13 +1133,13 @@ pagesEl.addEventListener('pointerdown', e => {
   if (e.pointerType === 'pen') lastPen = performance.now();
   const pg = c.pages[+el.dataset.i];
   if (c.active) {
-    if (c.active.id !== e.pointerId && (e.pointerType === 'pen' || c.active.type === e.pointerType)) abortStroke(c);
+    if (c.active.id !== e.pointerId && (e.pointerType === 'pen' || c.active.type === e.pointerType)) endPointer({ pointerId: c.active.id, pointerType: c.active.type }, false);
     else return;
   }
   if (!c.loaded) { toast(statusEl.dataset.s === 'loadfail' ? '필기를 불러오지 못했어요. 위의 "다시 시도"를 눌러 주세요.' : '필기를 불러오는 중이에요'); return; }
   ensureInk(c, pg);
   e.preventDefault();
-  if (e.pointerType === 'pen') { cancelLp(); tap = null; viewer.classList.add('inking'); }
+  if (e.pointerType === 'pen') { cancelLp(); tap = null; penDownDuringPan(); }
   try { el.setPointerCapture(e.pointerId); } catch {}
   const pt = toPage(pg, e);
   if (c.sel) clearSel(c);
@@ -1211,6 +1209,7 @@ function endPointer(e, cancel) {
 pagesEl.addEventListener('pointerup', e => endPointer(e, false));
 pagesEl.addEventListener('pointercancel', e => endPointer(e, true));
 pagesEl.addEventListener('lostpointercapture', e => endPointer(e, false));
+window.addEventListener('pointerup', e => endPointer(e, false), true);
 function ensureInk(c, pg) {
   if (pg.ink && pg.ink.width) return;
   const cssW = pg.w * c.scale, cssH = pg.h * c.scale;
@@ -1506,52 +1505,132 @@ function endPinch(c) {
 }
 const directTouches = e => [...e.touches].filter(t => t.touchType !== 'stylus');
 let tap = null;
-/* Palm rejection: a resting hand shows up as wide touches, and arrives around pencil use. */
-const touchSize = t => Math.max(t.radiusX || 0, t.radiusY || 0, t.webkitRadiusX || 0, t.webkitRadiusY || 0);
-const isPalm = t => false; // contact size is not reliable on iPad: fingers report as large as palms
 const penRecent = (c, ms) => (c.active && c.active.type === 'pen') || performance.now() - lastPen < ms;
+
+/* ---------- finger scrolling ----------
+   The app moves the pages itself (the viewer has touch-action: none). A resting palm then never
+   starts a native scroll, so it can't drag the page or make iPadOS cancel the pencil mid-stroke. */
+let pan = null, glide = 0;
+function stopGlide() { if (glide) cancelAnimationFrame(glide); glide = 0; }
+function pageAtCenter(c) {
+  const H = ui.dir === 'h', mid = H ? viewer.scrollLeft + viewer.clientWidth / 2 : viewer.scrollTop + viewer.clientHeight / 2;
+  let best = 0, bd = Infinity;
+  c.pages.forEach((pg, i) => {
+    const d = Math.abs(H ? pg.el.offsetLeft + pg.el.offsetWidth / 2 - mid : pg.el.offsetTop + pg.el.offsetHeight / 2 - mid);
+    if (d < bd) { bd = d; best = i; }
+  });
+  return best;
+}
+function startPan(c, t) {
+  stopGlide();
+  const sl = viewer.scrollLeft, st = viewer.scrollTop;
+  pan = { id: t.identifier, x0: t.clientX, y0: t.clientY, sl, st, sl0: sl, st0: st, lx: t.clientX, ly: t.clientY, lt: performance.now(),
+          vx: 0, vy: 0, moved: false, slop: penRecent(c, 800) ? 40 : 8, page: pageAtCenter(c) };
+}
+function movePan(c, t) {
+  if (!pan.moved) {
+    if (Math.hypot(t.clientX - pan.x0, t.clientY - pan.y0) < pan.slop) return;
+    pan.moved = true; pan.x0 = pan.lx = t.clientX; pan.y0 = pan.ly = t.clientY; pan.lt = performance.now();
+    return;
+  }
+  const now = performance.now(), dt = Math.max(1, now - pan.lt);
+  pan.vx = 0.7 * ((t.clientX - pan.lx) / dt) + 0.3 * pan.vx;
+  pan.vy = 0.7 * ((t.clientY - pan.ly) / dt) + 0.3 * pan.vy;
+  pan.lx = t.clientX; pan.ly = t.clientY; pan.lt = now;
+  const paged = ui.dir === 'h' && c.zoom <= 1.001;
+  viewer.scrollLeft = pan.sl - (t.clientX - pan.x0);
+  if (!paged) viewer.scrollTop = pan.st - (t.clientY - pan.y0);
+}
+function endPan(c) {
+  const p = pan; pan = null;
+  if (!p || !p.moved) return;
+  if (performance.now() - p.lt > 90) p.vx = p.vy = 0;
+  if (ui.dir === 'h' && c.zoom <= 1.001) { flip(c, p); return; }
+  let vx = p.vx, vy = p.vy, last = performance.now();
+  if (Math.hypot(vx, vy) < 0.05 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const step = now => {
+    const dt = Math.min(32, now - last); last = now;
+    viewer.scrollLeft -= vx * dt; viewer.scrollTop -= vy * dt;
+    const f = Math.pow(0.9965, dt); vx *= f; vy *= f;
+    glide = Math.hypot(vx, vy) > 0.02 ? requestAnimationFrame(step) : 0;
+  };
+  glide = requestAnimationFrame(step);
+}
+/* Horizontal mode: one swipe = one page, like a book. */
+function flip(c, p) {
+  const moved = viewer.scrollLeft - p.sl0;
+  let i = p.page;
+  if (moved > 50 || p.vx < -0.3) i++; else if (moved < -50 || p.vx > 0.3) i--;
+  const last = c.n - 1 + (c.addBtn ? 1 : 0);
+  i = clamp(i, 0, last);
+  const el = i < c.n ? c.pages[i].el : c.addBtn;
+  glideTo(el.offsetLeft + el.offsetWidth / 2 - viewer.clientWidth / 2, viewer.scrollTop);
+}
+function glideTo(x, y) {
+  stopGlide();
+  const x0 = viewer.scrollLeft, y0 = viewer.scrollTop, t0 = performance.now(), D = 260;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / D), q = 1 - Math.pow(1 - k, 3);
+    viewer.scrollLeft = x0 + (x - x0) * q; viewer.scrollTop = y0 + (y - y0) * q;
+    glide = k < 1 ? requestAnimationFrame(step) : 0;
+  };
+  glide = requestAnimationFrame(step);
+}
+/* Pencil touches down while a palm has nudged the page: put the page back first. */
+function penDownDuringPan() {
+  stopGlide();
+  if (!pan) return;
+  if (pan.moved && Math.hypot(viewer.scrollLeft - pan.sl0, viewer.scrollTop - pan.st0) < 140) { viewer.scrollLeft = pan.sl0; viewer.scrollTop = pan.st0; }
+  pan = null;
+}
+
 viewer.addEventListener('touchstart', e => {
   const c = cur; if (!c) return;
-  touchCount = directTouches(e).length;
-  const d0 = directTouches(e);
-  const palm = d0.some(isPalm);
-  const quiet = !palm && !penRecent(c, 1000) && !(e.target.closest && e.target.closest('button, .sel, .selbar'));
-  tap = (quiet && d0.length === 1 && e.touches.length === 1 && !ui.finger) ? { x: d0[0].clientX, y: d0[0].clientY, t: performance.now() } : null;
+  if ([...e.changedTouches].some(t => t.touchType === 'stylus')) { e.preventDefault(); return; }
+  if (e.target.closest && e.target.closest('button, input, .selbar')) return;
+  if (!(e.target.closest && e.target.closest('.sel'))) e.preventDefault();
+  stopGlide();
+  const d = directTouches(e);
+  touchCount = d.length;
+  const quiet = !penRecent(c, 1000) && !(e.target.closest && e.target.closest('.sel'));
+  tap = (quiet && d.length === 1 && e.touches.length === 1 && !ui.finger) ? { x: d[0].clientX, y: d[0].clientY, t: performance.now() } : null;
   cancelLp();
-  const lpEl = quiet && d0.length === 1 && e.touches.length === 1 && e.target.closest && e.target.closest('.page');
+  const lpEl = quiet && d.length === 1 && e.touches.length === 1 && e.target.closest && e.target.closest('.page');
   if (lpEl) {
-    lp = { x: d0[0].clientX, y: d0[0].clientY, i: +lpEl.dataset.i };
+    lp = { x: d[0].clientX, y: d[0].clientY, i: +lpEl.dataset.i };
     lp.t = setTimeout(() => {
       const l = lp; lp = null;
-      const cc = cur; if (!cc || cc.pinch || penRecent(cc, 1000)) return;
-      tap = null; lpFired = true;
+      const cc = cur; if (!cc || cc.pinch || penRecent(cc, 1000) || (pan && pan.moved)) return;
+      tap = null; lpFired = true; pan = null;
       if (cc.active && cc.active.type === 'touch') abortStroke(cc);
       showCtx(l.i, l.x, l.y);
     }, 550);
   }
-  if ([...e.changedTouches].some(t => t.touchType === 'stylus')) { e.preventDefault(); return; }
-  const direct = directTouches(e);
-  if (penRecent(c, 300) || palm) { e.preventDefault(); return; }
-  if (direct.length === 2) {
-    if (penRecent(c, 1000)) { e.preventDefault(); return; }
+  if (c.active && c.active.type === 'pen') { pan = null; return; }   // writing: every other touch is a hand
+  if (e.target.closest && e.target.closest('.sel')) return;
+  if (d.length >= 2) {
+    pan = null;
+    if (penRecent(c, 1000)) return;
     if (c.active && c.active.type === 'touch') abortStroke(c);
-    startPinch(c, direct); e.preventDefault(); return;
+    if (!c.pinch) startPinch(c, d.slice(0, 2));
+    return;
   }
-  if (ui.finger && direct.length === 1 && e.target.closest && e.target.closest('.page')) e.preventDefault();
+  if (d.length === 1 && !c.pinch && !(ui.finger && e.target.closest && e.target.closest('.page'))) startPan(c, d[0]);
 }, { passive: false });
 viewer.addEventListener('touchmove', e => {
   const c = cur; if (!c) return;
+  if (e.cancelable && !(e.target.closest && e.target.closest('input'))) e.preventDefault();
   if (tap) { const t = e.touches[0]; if (!t || e.touches.length > 1 || Math.hypot(t.clientX - tap.x, t.clientY - tap.y) > 10) tap = null; }
   if (lp) { const t = e.touches[0]; if (!t || e.touches.length > 1 || Math.hypot(t.clientX - lp.x, t.clientY - lp.y) > 10) cancelLp(); }
-  if (c.pinch) { const d = directTouches(e); if (d.length >= 2) movePinch(c, d); if (e.cancelable) e.preventDefault(); return; }
-  const stylus = [...e.touches].some(t => t.touchType === 'stylus');
-  const penBusy = (c.active && c.active.type === 'pen') || performance.now() - lastPen < 300;
-  if ((stylus || penBusy || (c.active && c.active.type === 'touch')) && e.cancelable) e.preventDefault();
+  if (c.pinch) { const d = directTouches(e); if (d.length >= 2) movePinch(c, d); return; }
+  if (c.active && c.active.type === 'pen') { pan = null; return; }
+  if (pan) { const t = [...e.touches].find(t => t.identifier === pan.id); if (t) movePan(c, t); }
 }, { passive: false });
 function touchEnd(e) {
   const c = cur; if (!c) return;
   touchCount = directTouches(e).length;
   if (c.pinch && touchCount < 2) endPinch(c);
+  if (pan && ![...e.touches].some(t => t.identifier === pan.id)) { if (e.type === 'touchend') endPan(c); else pan = null; }
   if (tap && e.type === 'touchend' && e.touches.length === 0 && performance.now() - tap.t < 300 && !c.pinch) setFocus(!ui.focus);
   if (e.touches.length === 0) tap = null;
   cancelLp();
