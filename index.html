@@ -290,7 +290,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v22</span>
+        <span class="usage"><span id="usage"></span> · v23</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -1393,11 +1393,92 @@ function recognizeShape(flat) {
   return { sharp: false, pts };
 }
 
+/* Open strokes: straight line, bent line (ㄷ ㄴ ㄱ, zigzag) or smooth curve (arc, C, S). */
+function polyErrOpen(R, V) {
+  let s = 0;
+  for (const p of R) { let m = Infinity; for (let i = 0; i < V.length - 1; i++) m = Math.min(m, segDist(p, V[i], V[i + 1])); s += m; }
+  return s / R.length;
+}
+function curveErr(R, C) {
+  let s = 0;
+  for (const p of R) { let m = Infinity; for (let i = 0; i + 3 < C.length; i += 2) m = Math.min(m, segDist(p, [C[i], C[i + 1]], [C[i + 2], C[i + 3]])); s += m; }
+  return s / R.length;
+}
+function snapAxes(V) {
+  V = V.map(v => v.slice());
+  const seg = i => { const a = Math.abs(Math.atan2(V[i + 1][1] - V[i][1], V[i + 1][0] - V[i][0]) * 180 / Math.PI); return a < 8 || a > 172 ? 'h' : Math.abs(a - 90) < 8 ? 'v' : ''; };
+  const kind = V.slice(0, -1).map((_, i) => seg(i));
+  kind.forEach((k, i) => { if (k === 'h') { const y = (V[i][1] + V[i + 1][1]) / 2; V[i][1] = V[i + 1][1] = y; } });
+  kind.forEach((k, i) => { if (k === 'v') { const x = (V[i][0] + V[i + 1][0]) / 2; V[i][0] = V[i + 1][0] = x; } });
+  return V;
+}
+function arcThrough(a, m, b, N) {
+  const [ax, ay] = a, [bx, by] = m, [cx, cy] = b;
+  const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+  if (Math.abs(d) < 1e-6) return null;
+  const ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / d;
+  const uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / d;
+  const r = Math.hypot(ax - ux, ay - uy);
+  if (r > 1e5) return null;
+  const TAU = Math.PI * 2, norm = x => ((x % TAU) + TAU) % TAU;
+  const A0 = Math.atan2(ay - uy, ax - ux), Am = Math.atan2(by - uy, bx - ux), A1 = Math.atan2(cy - uy, cx - ux);
+  let sweep = norm(A1 - A0);
+  if (norm(Am - A0) > sweep) sweep -= TAU;
+  const pts = [];
+  for (let k = 0; k <= N; k++) { const t = A0 + sweep * k / N; pts.push(ux + r * Math.cos(t), uy + r * Math.sin(t)); }
+  return pts;
+}
+function bezierFit(R, N) {
+  const n = R.length, P0 = R[0], P3 = R[n - 1], t = [0];
+  let L = 0;
+  for (let i = 1; i < n; i++) { L += Math.hypot(R[i][0] - R[i - 1][0], R[i][1] - R[i - 1][1]); t.push(L); }
+  if (!L) return null;
+  let c11 = 0, c12 = 0, c22 = 0; const x1 = [0, 0], x2 = [0, 0];
+  for (let i = 0; i < n; i++) {
+    const u = t[i] / L, v = 1 - u, b0 = v * v * v, b1 = 3 * u * v * v, b2 = 3 * u * u * v, b3 = u * u * u;
+    c11 += b1 * b1; c12 += b1 * b2; c22 += b2 * b2;
+    for (let k = 0; k < 2; k++) { const r = R[i][k] - b0 * P0[k] - b3 * P3[k]; x1[k] += b1 * r; x2[k] += b2 * r; }
+  }
+  const det = c11 * c22 - c12 * c12;
+  if (Math.abs(det) < 1e-9) return null;
+  const P1 = [0, 1].map(k => (x1[k] * c22 - x2[k] * c12) / det), P2 = [0, 1].map(k => (c11 * x2[k] - c12 * x1[k]) / det);
+  const pts = [];
+  for (let j = 0; j <= N; j++) {
+    const u = j / N, v = 1 - u;
+    for (let k = 0; k < 2; k++) pts.push(v * v * v * P0[k] + 3 * u * v * v * P1[k] + 3 * u * u * v * P2[k] + u * u * u * P3[k]);
+  }
+  return pts;
+}
+function fitOpen(flat) {
+  const P = []; for (let i = 0; i < flat.length; i += 2) P.push([flat[i], flat[i + 1]]);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of P) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  const diag = Math.hypot(x1 - x0, y1 - y0);
+  const R = resample(P, 64), a = R[0], b = R[R.length - 1];
+  let dev = 0; for (const p of R) dev = Math.max(dev, segDist(p, a, b));
+  if (dev < Math.max(0.06 * diag, 3)) return { line: true };
+  const cands = [];
+  let V = rdp(R, 0.06 * diag);
+  for (let changed = true; changed && V.length > 2;) {
+    changed = false;
+    for (let i = 1; i < V.length - 1; i++) if (turn(V[i - 1], V[i], V[i + 1]) < 25) { V.splice(i, 1); changed = true; break; }
+  }
+  if (V.length >= 3 && V.length <= 7) cands.push({ err: polyErrOpen(R, V) + 0.004 * diag * (V.length - 2), pts: snapAxes(V).flat(), sharp: true });
+  const arc = arcThrough(a, R[Math.floor(R.length / 2)], b, 48);
+  if (arc) cands.push({ err: curveErr(R, arc) * 0.9, pts: arc, sharp: false });
+  const bz = bezierFit(R, 48);
+  if (bz) cands.push({ err: curveErr(R, bz), pts: bz, sharp: false });
+  cands.sort((p, q) => p.err - q.err);
+  if (!cands.length || cands[0].err > Math.max(0.03 * diag, 2.5)) return { none: true };   // waves and scribbles stay as written
+  return cands[0];
+}
+
 function straighten(c, a) {
   const st = a.st, p = st.pts;
   if (p.length < 4 || pathLen(p) < 12) return;
   const avg = Math.round(st.pr.reduce((s, v) => s + v, 0) / st.pr.length);
-  const shape = recognizeShape(p);
+  let shape = recognizeShape(p);
+  if (!shape) { const o = fitOpen(p); if (!o.line) shape = o; }
   if (shape) {
     if (shape.none) return;
     a.shape = true;
