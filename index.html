@@ -134,7 +134,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 #viewer::-webkit-scrollbar,#lib::-webkit-scrollbar{display:none;width:0;height:0}
 #viewer.hdir #pages{flex-direction:row;align-items:center;min-height:100%;gap:24px;padding-top:16px;padding-bottom:calc(52px + env(safe-area-inset-bottom,0px))}
 #pages{position:relative;display:flex;flex-direction:column;align-items:center;gap:16px;padding-top:24px;padding-bottom:calc(120px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));min-width:100%;width:max-content}
-.page{position:relative;flex:none;background:var(--paper);box-shadow:var(--shadow);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.page{position:relative;flex:none;isolation:isolate;background:var(--paper);box-shadow:var(--shadow);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .fingerdraw .page{touch-action:none}
 .page canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .page canvas.hl{mix-blend-mode:multiply}
@@ -287,7 +287,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v19</span>
+        <span class="usage"><span id="usage"></span> · v20</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -397,6 +397,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 <script>
 'use strict';
 /* ================= constants & helpers ================= */
+const PAGE_MAXPX = 4.8e6;   // pixels per page layer; keeps all canvases well under Safari's memory limit
 const PEN_COLORS = ['#1B1F24', '#2747C9', '#D2343F', '#1F8A5B'];
 const HL_COLORS  = ['#FFE45C', '#B9F27C', '#A6DDFF', '#FFB3D1'];
 const PEN_W = [1.1, 1.9, 3.0];            // PDF points
@@ -837,7 +838,7 @@ async function openDoc(id) {
       if (!pg.visible && !c.pinch) unrender(c, pg);
     }
     pump();
-  }, { root: viewer, rootMargin: '100% 100%' });
+  }, { root: viewer, rootMargin: '40% 40%' });
   c.pages.forEach(pg => c.io.observe(pg.el));
   holdSnap(c, () => scrollToPage(c.curPage));
   requestAnimationFrame(() => { if (cur === c) { holdSnap(c, () => scrollToPage(c.curPage)); onScroll(); } });
@@ -1011,7 +1012,7 @@ async function renderPage(c, pg) {
   if (cur !== c || !pg.visible) return;
   const cssW = pg.w * s, cssH = pg.h * s;
   let dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const MAXPX = 8e6;
+  const MAXPX = PAGE_MAXPX;
   if (cssW * cssH * dpr * dpr > MAXPX) dpr = Math.sqrt(MAXPX / (cssW * cssH));
   const vp = page ? page.getViewport({ scale: s * dpr }) : { width: cssW * dpr, height: cssH * dpr };
   const cv = document.createElement('canvas'); cv.className = 'pdf';
@@ -1035,7 +1036,7 @@ async function renderPage(c, pg) {
     pg.el.append(pg.hl, pg.ink);
   }
   if (!(c.active && c.active.pg === pg)) {
-    pg.hl.width = pg.ink.width = cv.width; pg.hl.height = pg.ink.height = cv.height;
+    sizeInk(pg, cv.width, cv.height);
     redrawPage(c, pg);
   }
   pg.renderedScale = s;
@@ -1211,18 +1212,22 @@ pagesEl.addEventListener('pointerup', e => endPointer(e, false));
 pagesEl.addEventListener('pointercancel', e => endPointer(e, true));
 pagesEl.addEventListener('lostpointercapture', e => endPointer(e, false));
 window.addEventListener('pointerup', e => endPointer(e, false), true);
+/* Highlighter layer is soft, so it lives at half resolution: a quarter of the memory. */
+function sizeInk(pg, w, h) {
+  pg.ink.width = w; pg.ink.height = h;
+  pg.hl.width = Math.max(1, Math.ceil(w / 2)); pg.hl.height = Math.max(1, Math.ceil(h / 2));
+}
 function ensureInk(c, pg) {
   if (pg.ink && pg.ink.width) return;
   const cssW = pg.w * c.scale, cssH = pg.h * c.scale;
   let dpr = Math.min(window.devicePixelRatio || 1, 2);
-  if (cssW * cssH * dpr * dpr > 8e6) dpr = Math.sqrt(8e6 / (cssW * cssH));
+  if (cssW * cssH * dpr * dpr > PAGE_MAXPX) dpr = Math.sqrt(PAGE_MAXPX / (cssW * cssH));
   if (!pg.hl) {
     pg.hl = document.createElement('canvas'); pg.hl.className = 'hl';
     pg.ink = document.createElement('canvas'); pg.ink.className = 'ink';
     pg.el.append(pg.hl, pg.ink);
   }
-  pg.hl.width = pg.ink.width = Math.max(1, Math.floor(cssW * dpr));
-  pg.hl.height = pg.ink.height = Math.max(1, Math.floor(cssH * dpr));
+  sizeInk(pg, Math.max(1, Math.floor(cssW * dpr)), Math.max(1, Math.floor(cssH * dpr)));
   redrawPage(c, pg);
 }
 
@@ -1355,18 +1360,17 @@ function flushErase(c, a) {
 }
 function redrawRegion(c, pg, r) {
   if (!pg.ink || !pg.ink.width) return;
-  const k = pg.ink.width / pg.w;
-  const X0 = Math.max(0, Math.floor(r[0] * k) - 2), Y0 = Math.max(0, Math.floor(r[1] * k) - 2);
-  const X1 = Math.min(pg.ink.width, Math.ceil(r[2] * k) + 2), Y1 = Math.min(pg.ink.height, Math.ceil(r[3] * k) + 2);
-  if (X1 <= X0 || Y1 <= Y0) return;
   const ctxs = [pg.hl.getContext('2d'), pg.ink.getContext('2d')];
   for (const ctx of ctxs) {
+    const cv = ctx.canvas, k = cv.width / pg.w;
+    const X0 = Math.max(0, Math.floor(r[0] * k) - 2), Y0 = Math.max(0, Math.floor(r[1] * k) - 2);
+    const X1 = Math.min(cv.width, Math.ceil(r[2] * k) + 2), Y1 = Math.min(cv.height, Math.ceil(r[3] * k) + 2);
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.beginPath(); ctx.rect(X0, Y0, X1 - X0, Y1 - Y0); ctx.clip();
+    ctx.beginPath(); ctx.rect(X0, Y0, Math.max(0, X1 - X0), Math.max(0, Y1 - Y0)); ctx.clip();
     ctx.clearRect(X0, Y0, X1 - X0, Y1 - Y0);
     ctx.setTransform(k, 0, 0, k, 0, 0);
   }
-  const x0 = X0 / k, y0 = Y0 / k, x1 = X1 / k, y1 = Y1 / k;
+  const x0 = r[0] - 4, y0 = r[1] - 4, x1 = r[2] + 4, y1 = r[3] + 4;
   for (const st of c.strokes.get(pg.i) || []) {
     const b = inkBox(st);
     if (b[2] < x0 || b[0] > x1 || b[3] < y0 || b[1] > y1) continue;
