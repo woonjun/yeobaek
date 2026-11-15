@@ -143,7 +143,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .mini .tool{height:38px;min-width:38px}
 #ed.focus .tb{display:none}
 #ed.focus #pages{padding-top:calc(24px + env(safe-area-inset-top,0px))}
-.pageind{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:99px;padding:6px 14px;font:500 12px var(--f-mono);font-variant-numeric:tabular-nums;color:var(--muted);pointer-events:none;z-index:4}
+.pageind{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:99px;padding:6px 14px;font:500 12px var(--f-mono);font-variant-numeric:tabular-nums;color:var(--fg);z-index:4;cursor:pointer;touch-action:manipulation}
 .banner{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:4;width:min(560px,calc(100% - 32px));background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:14px;padding:14px 16px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;font-size:14px}
 .banner b{display:block}
 .banner span{color:var(--muted);font-size:13px}
@@ -187,6 +187,25 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .diag{display:grid;grid-template-columns:1fr auto;gap:8px 16px;margin:0 0 6px;font-size:14px}
 .diag dt{color:var(--muted)}
 .diag dd{margin:0;font:500 14px var(--f-mono);font-variant-numeric:tabular-nums;text-align:right}
+.scrub{position:absolute;right:calc(6px + env(safe-area-inset-right,0px));top:70px;bottom:calc(64px + env(safe-area-inset-bottom,0px));width:28px;pointer-events:none;z-index:4}
+.scrub-h{position:absolute;right:0;top:0;width:24px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);pointer-events:auto;touch-action:none;padding:0;cursor:grab}
+.scrub-h::before{content:"";position:absolute;left:50%;top:50%;width:8px;height:12px;transform:translate(-50%,-50%);border-top:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted)}
+.scrub-h::after{content:"";position:absolute;inset:-10px -8px}
+.scrub.active .scrub-h{background:var(--accent);border-color:var(--accent)}
+.scrub.active .scrub-h::before{border-color:var(--accent-fg)}
+.scrub-tip{position:absolute;right:36px;transform:translateY(-50%);background:var(--fg);color:var(--bg);font:500 14px var(--f-mono);font-variant-numeric:tabular-nums;padding:8px 12px;border-radius:10px;white-space:nowrap;box-shadow:var(--shadow);pointer-events:none}
+.nav-card{width:min(780px,100%);height:calc(100vh - 32px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));max-height:calc(100dvh - 32px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px}
+.nav-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.nav-head b{font-size:16px;margin-right:auto}
+.nav-form{display:flex;align-items:center;gap:6px}
+.nav-form input{width:80px;height:40px;border:1px solid var(--line);border-radius:10px;padding:0 10px;font:500 15px var(--f-mono);background:var(--surface-2);color:var(--fg);text-align:right}
+.nav-form span{font:500 14px var(--f-mono);color:var(--muted)}
+.nav-grid{overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));align-content:start;gap:14px 12px;padding:4px 4px 8px;min-height:0;flex:1;overscroll-behavior:contain}
+.navt{border:0;background:none;padding:0;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--fg);min-width:0}
+.navt-img{display:block;width:100%;max-width:100%;background:#fff center/100% 100% no-repeat;border-radius:4px;box-shadow:0 0 0 1px var(--line),0 2px 6px rgba(18,24,38,.08)}
+.navt[aria-current="page"] .navt-img{box-shadow:0 0 0 2.5px var(--accent)}
+.navt-n{font:500 12px var(--f-mono);font-variant-numeric:tabular-nums;color:var(--muted)}
+.navt[aria-current="page"] .navt-n{color:var(--accent)}
 .ctx-layer{position:fixed;inset:0;z-index:30}
 .ctx{position:fixed;left:0;top:0;min-width:220px;max-width:calc(100vw - 16px);background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:6px;display:flex;flex-direction:column}
 .ctx .hd{font:500 12px var(--f-mono);color:var(--muted);padding:6px 10px 4px;font-variant-numeric:tabular-nums}
@@ -290,7 +309,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v23</span>
+        <span class="usage"><span id="usage"></span> · v24</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
@@ -348,7 +367,8 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
       <div><b>원본 PDF가 없어요</b><span>필기는 그대로 있어요. 같은 PDF를 다시 연결하면 이어서 볼 수 있어요.</span></div>
       <button class="btn" id="relink-btn">PDF 다시 연결</button>
     </div>
-    <div class="pageind" id="pageind">1 / 1</div>
+    <button type="button" class="pageind" id="pageind" title="페이지 이동">1 / 1</button>
+    <div class="scrub" id="scrub" hidden><button type="button" class="scrub-h" id="scrub-h" aria-label="끌어서 페이지 빠르게 넘기기"></button><div class="scrub-tip" id="scrub-tip" hidden></div></div>
     <div class="ecur" id="ecur" hidden></div>
   </section>
 </div>
@@ -382,6 +402,16 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
     <p id="dg-since"></p>
     <dl class="diag" id="dg-list"></dl>
     <div class="row spread"><button class="btn" id="dg-reset">기록 지우기</button><button class="btn" id="dg-close">닫기</button></div>
+  </div>
+</div>
+<div class="sheet" id="nav-sheet" hidden>
+  <div class="sheet-card nav-card" role="dialog" aria-modal="true" aria-labelledby="nav-title">
+    <div class="nav-head">
+      <b id="nav-title">페이지 이동</b>
+      <form class="nav-form" id="nav-form"><input id="nav-num" type="number" inputmode="numeric" min="1" enterkeyhint="go" aria-label="쪽 번호"><span id="nav-total"></span><button class="btn primary" type="submit">이동</button></form>
+      <button class="btn" type="button" id="nav-close">닫기</button>
+    </div>
+    <div class="nav-grid" id="nav-grid"></div>
   </div>
 </div>
 <div class="sheet" id="date-sheet" hidden>
@@ -969,6 +999,7 @@ function onScroll() {
     while (lo < hi) { const m = (lo + hi + 1) >> 1; if ((H ? c.pages[m].el.offsetLeft : c.pages[m].el.offsetTop) <= mid) lo = m; else hi = m - 1; }
     c.curPage = lo;
     $('#pageind').textContent = `${lo + 1} / ${c.n}`;
+    placeScrub();
     pump();
   });
 }
@@ -1664,6 +1695,7 @@ statusEl.addEventListener('click', () => {
 
 function markDirty(c, page) {
   c.dirty.add(page); updateUndo();
+  c.ver = c.ver || {}; c.ver[page] = (c.ver[page] || 0) + 1;
   setStatus('dirty');
   clearTimeout(c.saveT); c.saveT = setTimeout(() => flush(c), 400);
 }
@@ -1715,6 +1747,7 @@ async function closeDoc(silent) {
   c.io && c.io.disconnect();
   for (const pg of c.pages) unrender(c, pg);
   try { c.pdf && c.pdf.destroy(); } catch {}
+  dropThumbs(c.id); scrub.hidden = true;
   cur = null;
   pagesEl.replaceChildren();
   return true;
@@ -2228,6 +2261,7 @@ async function restructure(c, order, focusIdx, extra = {}) {
     });
   } catch (e) { toast(storeErr(e), 4000); return false; }
   S.docs.set(c.id, { ...meta });
+  dropThumbs(c.id); c.ver = {};
   if (cur !== c) return true;
   c.meta = meta; c.sizes = meta.sizes; c.n = meta.pages; c.strokes = ns;
   c.undo = []; c.redo = []; updateUndo();
@@ -2560,6 +2594,122 @@ $('#diag-btn').addEventListener('click', openDiag);
 $('#dg-close').addEventListener('click', () => { $('#diag-sheet').hidden = true; });
 $('#dg-reset').addEventListener('click', () => { Object.assign(diag, DIAG0()); saveDiag(); openDiag(); });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveDiag(); });
+
+/* ---------- jumping around long documents ---------- */
+function goToPage(i) {
+  const c = cur; if (!c) return;
+  i = clamp(i, 0, c.n - 1);
+  stopGlide();
+  holdSnap(c, () => scrollToPage(i));
+  onScroll();
+}
+/* Scrub handle on the right edge: drag it to fly through the pages. */
+const scrub = $('#scrub'), scrubH = $('#scrub-h'), scrubTip = $('#scrub-tip');
+let scrubbing = null;
+function placeScrub() {
+  const c = cur; if (!c) return;
+  scrub.hidden = c.n < 4;
+  if (scrub.hidden) return;
+  scrub.style.top = (viewer.offsetTop + 10) + 'px';
+  if (scrubbing) return;
+  const H = Math.max(0, scrub.clientHeight - 44);
+  scrubH.style.top = (c.n > 1 ? c.curPage / (c.n - 1) : 0) * H + 'px';
+}
+function moveScrub(e) {
+  const c = cur; if (!c || !scrubbing) return;
+  const r = scrub.getBoundingClientRect(), H = Math.max(1, r.height - 44);
+  const y = clamp(e.clientY - r.top - scrubbing.off, 0, H);
+  scrubH.style.top = y + 'px';
+  const i = Math.round(y / H * (c.n - 1));
+  scrubTip.style.top = (y + 22) + 'px';
+  scrubTip.textContent = `${i + 1} / ${c.n}`;
+  if (i !== scrubbing.page) { scrubbing.page = i; c.zoomAt = performance.now(); holdSnap(c, () => scrollToPage(i)); }
+}
+scrubH.addEventListener('pointerdown', e => {
+  const c = cur; if (!c) return;
+  e.preventDefault(); e.stopPropagation();
+  try { scrubH.setPointerCapture(e.pointerId); } catch {}
+  stopGlide();
+  scrubbing = { id: e.pointerId, off: e.clientY - scrubH.getBoundingClientRect().top, page: c.curPage };
+  scrub.classList.add('active'); scrubTip.hidden = false;
+  moveScrub(e);
+});
+window.addEventListener('pointermove', e => { if (scrubbing && e.pointerId === scrubbing.id) { e.preventDefault(); moveScrub(e); } });
+const endScrub = e => {
+  if (!scrubbing || e.pointerId !== scrubbing.id) return;
+  scrubbing = null; scrub.classList.remove('active'); scrubTip.hidden = true;
+  onScroll(); pump();
+};
+window.addEventListener('pointerup', endScrub, true);
+window.addEventListener('pointercancel', endScrub, true);
+
+/* Page picker: thumbnails of every page plus a page-number box. */
+const navThumbs = new Map();
+let navIO = null, navVisible = new Set(), navBusy = false;
+const thumbKey = (c, i) => `${c.id}:${i}:${(c.ver && c.ver[i]) || 0}`;
+function dropThumbs(id) { for (const [k, u] of navThumbs) if (k.startsWith(id + ':')) { URL.revokeObjectURL(u); navThumbs.delete(k); } }
+async function makeThumb(c, i) {
+  const key = thumbKey(c, i);
+  if (navThumbs.has(key)) return navThumbs.get(key);
+  const pg = c.pages[i]; if (!pg) return null;
+  const W = 220, k = W / pg.w;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = Math.max(1, Math.round(pg.h * k));
+  const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+  if (c.meta.kind === 'note') { ctx.setTransform(k, 0, 0, k, 0, 0); drawTpl(ctx, tplOps(c.meta.tpl && c.meta.tpl[i], pg.w, pg.h)); }
+  else { try { const page = await getPdfPage(c, i); await page.render({ canvasContext: ctx, viewport: page.getViewport({ scale: k }) }).promise; } catch {} }
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  const strokes = c.strokes.get(i) || [];
+  ctx.globalCompositeOperation = 'multiply'; strokes.filter(st => st.t === 'h').forEach(st => drawStroke(ctx, st));
+  ctx.globalCompositeOperation = 'source-over'; strokes.filter(st => st.t !== 'h').forEach(st => drawStroke(ctx, st));
+  const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.8));
+  cv.width = cv.height = 0;
+  if (!blob || cur !== c) return null;
+  const url = URL.createObjectURL(blob); navThumbs.set(key, url);
+  return url;
+}
+async function runNav(c) {
+  if (navBusy) return; navBusy = true;
+  try {
+    while (!$('#nav-sheet').hidden && cur === c) {
+      const el = [...navVisible].find(t => !t.dataset.done); if (!el) break;
+      el.dataset.done = '1';
+      const url = await makeThumb(c, +el.dataset.i);
+      if (url) el.firstChild.style.backgroundImage = `url("${url}")`;
+    }
+  } finally { navBusy = false; }
+}
+function openNav() {
+  const c = cur; if (!c) return;
+  $('#nav-total').textContent = `/ ${c.n}`;
+  const inp = $('#nav-num'); inp.max = c.n; inp.value = c.curPage + 1;
+  const grid = $('#nav-grid');
+  navIO && navIO.disconnect(); navVisible = new Set();
+  grid.replaceChildren(...c.pages.map((pg, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'navt'; b.dataset.i = i;
+    if (i === c.curPage) b.setAttribute('aria-current', 'page');
+    const img = document.createElement('span'); img.className = 'navt-img'; img.style.aspectRatio = `${pg.w} / ${pg.h}`;
+    const url = navThumbs.get(thumbKey(c, i)); if (url) { img.style.backgroundImage = `url("${url}")`; b.dataset.done = '1'; }
+    const n = document.createElement('span'); n.className = 'navt-n'; n.textContent = i + 1;
+    b.append(img, n);
+    b.addEventListener('click', () => { closeNav(); goToPage(i); });
+    return b;
+  }));
+  $('#nav-sheet').hidden = false;
+  navIO = new IntersectionObserver(es => { for (const e of es) { if (e.isIntersecting) navVisible.add(e.target); else navVisible.delete(e.target); } runNav(c); }, { root: grid, rootMargin: '300px 0px' });
+  [...grid.children].forEach(el => navIO.observe(el));
+  requestAnimationFrame(() => { const el = grid.children[c.curPage]; if (el) grid.scrollTop = el.offsetTop - grid.clientHeight / 2 + el.offsetHeight / 2; });
+}
+function closeNav() { $('#nav-sheet').hidden = true; navIO && navIO.disconnect(); navVisible = new Set(); }
+$('#pageind').addEventListener('click', openNav);
+$('#nav-close').addEventListener('click', closeNav);
+$('#nav-sheet').addEventListener('click', e => { if (e.target === e.currentTarget) closeNav(); });
+$('#nav-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const c = cur; if (!c) return;
+  const v = parseInt($('#nav-num').value, 10);
+  if (!Number.isFinite(v)) { toast('쪽 번호를 입력해 주세요.'); return; }
+  $('#nav-num').blur(); closeNav(); goToPage(v - 1);
+});
 
 /* ---------- library wiring ---------- */
 $('#import-btn').addEventListener('click', () => $('#f-pdf').click());
