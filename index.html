@@ -147,7 +147,7 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .banner{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:4;width:min(560px,calc(100% - 32px));background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:14px;padding:14px 16px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;font-size:14px}
 .banner b{display:block}
 .banner span{color:var(--muted);font-size:13px}
-#toast{position:fixed;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:50;max-width:calc(100% - 32px);box-shadow:var(--shadow);text-align:center}
+#toast{pointer-events:none;position:fixed;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:50;max-width:calc(100% - 32px);box-shadow:var(--shadow);text-align:center}
 .sheet{position:fixed;inset:0;z-index:40;background:rgba(10,12,16,.35);display:grid;place-items:center;padding:16px}
 .sheet-card{width:min(420px,100%);background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:20px;display:flex;flex-direction:column;gap:8px}
 .sheet-card b{font-size:16px}
@@ -184,6 +184,9 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
 .selbar button:active{background:var(--surface-2)}
 .selbar button.danger{color:var(--danger)}
 .lasso-hint{font-size:13px;color:var(--muted);padding:0 6px;white-space:nowrap}
+.diag{display:grid;grid-template-columns:1fr auto;gap:8px 16px;margin:0 0 6px;font-size:14px}
+.diag dt{color:var(--muted)}
+.diag dd{margin:0;font:500 14px var(--f-mono);font-variant-numeric:tabular-nums;text-align:right}
 .ctx-layer{position:fixed;inset:0;z-index:30}
 .ctx{position:fixed;left:0;top:0;min-width:220px;max-width:calc(100vw - 16px);background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:6px;display:flex;flex-direction:column}
 .ctx .hd{font:500 12px var(--f-mono);color:var(--muted);padding:6px 10px 4px;font-variant-numeric:tabular-nums}
@@ -287,10 +290,11 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
         </div>
       </div>
       <footer class="lib-foot">
-        <span class="usage"><span id="usage"></span> · v20</span>
+        <span class="usage"><span id="usage"></span> · v21</span>
         <div class="acts">
           <button class="link" id="backup-btn">전체 백업 (PDF 포함)</button>
           <button class="link" id="restore-btn">백업에서 복원</button>
+          <button class="link" id="diag-btn">펜 입력 기록</button>
         </div>
       </footer>
     </div>
@@ -371,6 +375,14 @@ button:focus-visible,.card-open:focus-visible{outline:2px solid var(--accent);ou
     <label class="fld" for="nm-input"><span>이름</span><input id="nm-input" type="text" maxlength="80" autocomplete="off" enterkeyhint="done"></label>
     <div class="row"><button class="btn" type="button" id="nm-cancel">닫기</button><button class="btn primary" type="submit" id="nm-save">저장</button></div>
   </form>
+</div>
+<div class="sheet" id="diag-sheet" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="dg-title">
+    <b id="dg-title">펜 입력 기록</b>
+    <p id="dg-since"></p>
+    <dl class="diag" id="dg-list"></dl>
+    <div class="row spread"><button class="btn" id="dg-reset">기록 지우기</button><button class="btn" id="dg-close">닫기</button></div>
+  </div>
 </div>
 <div class="sheet" id="date-sheet" hidden>
   <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="ds-title">
@@ -864,6 +876,7 @@ function buildPages(c) {
   for (let i = 0; i < c.n; i++) {
     const [w, h] = c.sizes[i] || c.sizes[0] || [595, 842];
     const el = document.createElement('div'); el.className = 'page'; el.dataset.i = i;
+    guardTouch(el);
     const ph = document.createElement('span'); ph.className = 'ph'; ph.textContent = i + 1;
     el.appendChild(ph);
     c.pages.push({ i, w, h, el, ph, pdfC: null, hl: null, ink: null, renderedScale: 0, visible: false, failed: false });
@@ -1032,7 +1045,7 @@ async function renderPage(c, pg) {
   pg.el.insertBefore(cv, pg.hl || null);
   if (!pg.hl) {
     pg.hl = document.createElement('canvas'); pg.hl.className = 'hl';
-    pg.ink = document.createElement('canvas'); pg.ink.className = 'ink';
+    pg.ink = document.createElement('canvas'); pg.ink.className = 'ink'; guardTouch(pg.ink);
     pg.el.append(pg.hl, pg.ink);
   }
   if (!(c.active && c.active.pg === pg)) {
@@ -1126,43 +1139,77 @@ function shouldDraw(e) {
   return ui.finger && touchCount <= 1;
 }
 
-pagesEl.addEventListener('pointerdown', e => {
-  const c = cur; if (!c || c.pinch) return;
-  if (e.target.closest && e.target.closest('.datebtn, .sel, .selbar')) return;
-  const el = e.target.closest('.page'); if (!el) return;
-  if (!shouldDraw(e)) return;
-  if (e.pointerType === 'pen') lastPen = performance.now();
-  const pg = c.pages[+el.dataset.i];
+/* ---------- pencil input ----------
+   iPad Safari sometimes loses pencil events (a known WebKit bug around Scribble): a stroke's
+   "touched" or "lifted" signal can go missing. The app starts and ends strokes from whatever
+   signal does arrive, and keeps a small tally so missed input can be checked later. */
+const DIAG0 = () => ({ since: Date.now(), down: 0, lateStart: 0, lateEnd: 0, cancel: 0, ignored: {} });
+const diag = (() => { try { return Object.assign(DIAG0(), JSON.parse(localStorage.getItem('yb.diag') || '{}')); } catch { return DIAG0(); } })();
+function saveDiag() { try { localStorage.setItem('yb.diag', JSON.stringify(diag)); } catch {} }
+const ignoreDown = r => { diag.ignored[r] = (diag.ignored[r] || 0) + 1; };
+const stopTouch = e => { if (e.cancelable) e.preventDefault(); };
+const isStylus = e => [...e.changedTouches].some(t => t.touchType === 'stylus');
+function guardTouch(node) {
+  node.addEventListener('touchstart', e => { if (isStylus(e)) stopTouch(e); }, { passive: false });
+  node.addEventListener('touchmove', stopTouch, { passive: false });
+  node.addEventListener('touchend', e => { if (isStylus(e)) stopTouch(e); }, { passive: false });
+}
+function beginStroke(c, el, e, late) {
+  const pg = c.pages[+el.dataset.i]; if (!pg) return false;
   if (c.active) {
-    if (c.active.id !== e.pointerId && (e.pointerType === 'pen' || c.active.type === e.pointerType)) endPointer({ pointerId: c.active.id, pointerType: c.active.type }, false);
-    else return;
+    if (e.pointerType === 'pen' || (c.active.id !== e.pointerId && c.active.type === e.pointerType)) endPointer({ pointerId: c.active.id, pointerType: c.active.type }, false);
+    else return false;
   }
-  if (!c.loaded) { toast(statusEl.dataset.s === 'loadfail' ? '필기를 불러오지 못했어요. 위의 "다시 시도"를 눌러 주세요.' : '필기를 불러오는 중이에요'); return; }
+  if (!c.loaded) { toast(statusEl.dataset.s === 'loadfail' ? '필기를 불러오지 못했어요. 위의 "다시 시도"를 눌러 주세요.' : '필기를 불러오는 중이에요'); return false; }
   ensureInk(c, pg);
-  e.preventDefault();
-  if (e.pointerType === 'pen') { cancelLp(); tap = null; penDownDuringPan(); }
-  try { el.setPointerCapture(e.pointerId); } catch {}
+  if (e.pointerType === 'pen') { cancelLp(); tap = null; penDownDuringPan(); diag.down++; if (late) diag.lateStart++; }
+  if (e.pointerType === 'mouse') { try { el.setPointerCapture(e.pointerId); } catch {} }
   const pt = toPage(pg, e);
   if (c.sel) clearSel(c);
   if (ui.tool === 'lasso') {
     c.active = { pg, id: e.pointerId, type: e.pointerType, lasso: [pt.x, pt.y], ls: makeLassoSvg(pg) };
     c.active.ls.pl.setAttribute('points', `${pt.x},${pt.y}`);
-    return;
+    return true;
   }
   if (ui.tool === 'eraser') {
     c.active = { pg, id: e.pointerId, type: e.pointerType, erase: { page: pg.i, before: (c.strokes.get(pg.i) || []).slice(), changed: false, last: pt, dirty: null, raf: 0 } };
-    showCursor(c, e); eraseAt(c, pg, pt); return;
+    showCursor(c, e); eraseAt(c, pg, pt); return true;
   }
   const t = ui.tool === 'hl' ? 'h' : 'p';
   const st = { t, c: t === 'h' ? HL_COLORS[ui.hlColor] : PEN_COLORS[ui.penColor], w: t === 'h' ? HL_W[ui.hlW] : PEN_W[ui.penW], pts: [pt.x, pt.y], pr: [pq(e)] };
   c.active = { pg, id: e.pointerId, type: e.pointerType, st, lx: pt.x, ly: pt.y, hold: { x: pt.x, y: pt.y }, holdT: 0 };
   armHold(c, c.active);
-});
-
-pagesEl.addEventListener('pointermove', e => {
+  return true;
+}
+pagesEl.addEventListener('pointerdown', e => {
   const c = cur; if (!c) return;
-  if (!c.active) { if (ui.tool === 'eraser' && e.pointerType !== 'touch') showCursor(c, e); return; }
+  const pen = e.pointerType === 'pen';
+  if (pen) lastPen = performance.now();
+  if (c.pinch) { if (pen) ignoreDown('pinch'); return; }
+  if (e.target.closest && e.target.closest('.datebtn, .selbar')) return;
+  if (e.target.closest && e.target.closest('.sel') && !(pen && ui.tool !== 'lasso')) return;
+  const el = e.target.closest && e.target.closest('.page');
+  if (!el) { if (pen) ignoreDown('outside'); return; }
+  if (!shouldDraw(e)) return;
+  e.preventDefault();
+  beginStroke(c, el, e, false);
+});
+window.addEventListener('pointermove', e => {
+  const c = cur; if (!c || $('#ed').hidden) return;
+  const onPage = e.target.closest && e.target.closest('.page');
+  if (!c.active) {
+    if (e.pointerType === 'pen' && ((e.buttons & 1) || e.pressure > 0) && !c.pinch && onPage
+        && !e.target.closest('.selbar, .datebtn') && !(e.target.closest('.sel') && ui.tool === 'lasso')
+        && performance.now() - (c.lastEnd || 0) > 8) {
+      lastPen = performance.now();       // pencil is on the glass but its "touched" signal never came
+      e.preventDefault(); beginStroke(c, onPage, e, true);
+      return;
+    }
+    if (ui.tool === 'eraser' && e.pointerType !== 'touch' && onPage) showCursor(c, e);
+    return;
+  }
   if (e.pointerId !== c.active.id) return;
+  if (c.active.type === 'pen' && e.pointerType === 'pen' && !(e.buttons & 1) && !e.pressure) { diag.lateEnd++; endPointer(e, false); return; }   // lifted, but no "lifted" signal
   e.preventDefault();
   const a = c.active;
   if (a.erase) showCursor(c, e);
@@ -1190,6 +1237,9 @@ pagesEl.addEventListener('pointermove', e => {
 function endPointer(e, cancel) {
   const c = cur; if (!c || !c.active || e.pointerId !== c.active.id) return;
   const a = c.active; c.active = null;
+  c.lastEnd = performance.now();
+  if (cancel && a.type === 'pen') diag.cancel++;
+  if (c.pendingResize) { c.pendingResize = false; requestAnimationFrame(onViewerResize); }
   viewer.classList.remove('inking');
   if (a.type === 'pen') lastPen = performance.now();
   if (a.lasso) { a.ls.svg.remove(); if (!cancel) finishLasso(c, a.pg, a.lasso); return; }
@@ -1208,10 +1258,9 @@ function endPointer(e, cancel) {
   markDirty(c, a.pg.i);
   if (a.pg.renderedScale !== c.scale || !a.pg.visible) pump();
 }
-pagesEl.addEventListener('pointerup', e => endPointer(e, false));
-pagesEl.addEventListener('pointercancel', e => endPointer(e, true));
-pagesEl.addEventListener('lostpointercapture', e => endPointer(e, false));
 window.addEventListener('pointerup', e => endPointer(e, false), true);
+window.addEventListener('pointercancel', e => endPointer(e, true), true);
+pagesEl.addEventListener('lostpointercapture', e => { if (e.pointerType === 'mouse') endPointer(e, false); });
 /* Highlighter layer is soft, so it lives at half resolution: a quarter of the memory. */
 function sizeInk(pg, w, h) {
   pg.ink.width = w; pg.ink.height = h;
@@ -1224,7 +1273,7 @@ function ensureInk(c, pg) {
   if (cssW * cssH * dpr * dpr > PAGE_MAXPX) dpr = Math.sqrt(PAGE_MAXPX / (cssW * cssH));
   if (!pg.hl) {
     pg.hl = document.createElement('canvas'); pg.hl.className = 'hl';
-    pg.ink = document.createElement('canvas'); pg.ink.className = 'ink';
+    pg.ink = document.createElement('canvas'); pg.ink.className = 'ink'; guardTouch(pg.ink);
     pg.el.append(pg.hl, pg.ink);
   }
   sizeInk(pg, Math.max(1, Math.floor(cssW * dpr)), Math.max(1, Math.floor(cssH * dpr)));
@@ -1680,6 +1729,7 @@ viewer.addEventListener('touchmove', e => {
   if (pan) { const t = [...e.touches].find(t => t.identifier === pan.id); if (t) movePan(c, t); }
 }, { passive: false });
 function touchEnd(e) {
+  if (isStylus(e) && e.cancelable) e.preventDefault();
   const c = cur; if (!c) return;
   touchCount = directTouches(e).length;
   if (c.pinch && touchCount < 2) endPinch(c);
@@ -1709,8 +1759,9 @@ function holdSnap(c, fn) {
   }
 }
 /* When the viewer changes size (tools hidden/shown, rotation), keep the same spot of the same page in the middle. */
-new ResizeObserver(() => {
+function onViewerResize() {
   const c = cur; if (!c || c.pinch) return;
+  if (c.active) { c.pendingResize = true; return; }
   const r = viewer.getBoundingClientRect();
   const cx = r.left + viewer.clientWidth / 2, cy = r.top + viewer.clientHeight / 2;
   const a = anchorAt(c, cx, cy);
@@ -1723,7 +1774,8 @@ new ResizeObserver(() => {
     viewer.scrollTop += nr.top + a.v * nr.height - cy;
   });
   onScroll();
-}).observe(viewer);
+}
+new ResizeObserver(() => onViewerResize()).observe(viewer);
 function renderDir() {
   viewer.classList.toggle('hdir', ui.dir === 'h');
   $('use', $('#dir-btn')).setAttribute('href', ui.dir === 'h' ? '#i-dir-h' : '#i-dir-v');
@@ -2099,6 +2151,7 @@ function setSel(c, page, list) {
   posSel(c);
   el.addEventListener('pointerdown', e => {
     const s = c.sel; if (!s || s.el !== el) return;
+    if (e.pointerType === 'pen' && ui.tool !== 'lasso') return;
     e.preventDefault(); e.stopPropagation();
     if (e.pointerType === 'pen') lastPen = performance.now();
     try { el.setPointerCapture(e.pointerId); } catch {}
@@ -2295,6 +2348,28 @@ $('#name-form').addEventListener('submit', async e => {
   } catch (err) { toast(storeErr(err), 4000); }
 });
 $('#doc-name').addEventListener('click', () => { if (cur) openRename(cur.id); });
+
+/* ---------- pencil input record ---------- */
+function openDiag() {
+  saveDiag();
+  const d = new Date(diag.since);
+  $('#dg-since').textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 ${d.toTimeString().slice(0, 5)}부터 기록`;
+  const ig = diag.ignored || {};
+  const rows = [
+    ['펜으로 시작한 획', diag.down],
+    ['닿음 신호가 늦게 와서 앱이 살린 획', diag.lateStart],
+    ['뗌 신호가 안 와서 앱이 마무리한 획', diag.lateEnd],
+    ['아이패드가 도중에 끊은 획', diag.cancel],
+    ['두 손가락 확대 중이라 무시된 펜', ig.pinch || 0],
+    ['페이지 밖이라 무시된 펜', ig.outside || 0],
+  ];
+  $('#dg-list').replaceChildren(...rows.flatMap(([k, v]) => { const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; return [dt, dd]; }));
+  $('#diag-sheet').hidden = false;
+}
+$('#diag-btn').addEventListener('click', openDiag);
+$('#dg-close').addEventListener('click', () => { $('#diag-sheet').hidden = true; });
+$('#dg-reset').addEventListener('click', () => { Object.assign(diag, DIAG0()); saveDiag(); openDiag(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveDiag(); });
 
 /* ---------- library wiring ---------- */
 $('#import-btn').addEventListener('click', () => $('#f-pdf').click());
